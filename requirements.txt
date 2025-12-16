@@ -1,0 +1,24 @@
+# Core dependencies
+streamlit>=1.29.0
+langchain>=0.1.0
+langchain-openai>=0.0.5
+langgraph>=0.0.20
+openai>=1.6.0
+
+# Vector stores
+weaviate-client>=4.0.0
+faiss-cpu>=1.7.4
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+sqlalchemy>=2.0.0
+
+# Visualization
+plotly>=5.18.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.0.0
