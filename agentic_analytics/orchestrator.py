@@ -144,13 +144,17 @@ class AgenticOrchestrator:
         )
         
         if result.get("success"):
+            analysis_text = result.get("analysis", "")
             return {
-                "analysis": result.get("analysis", ""),
+                "analysis": analysis_text,
+                "final_response": analysis_text,  # Set final response here
                 "messages": [f"Analysis completed"]
             }
         else:
+            error_msg = f"Analysis failed: {result.get('error', 'Unknown error')}"
             return {
-                "messages": [f"Analysis failed: {result.get('error', 'Unknown error')}"]
+                "messages": [error_msg],
+                "final_response": error_msg
             }
     
     def _visualization_node(self, state: AgentState) -> Dict[str, Any]:
@@ -195,9 +199,6 @@ class AgenticOrchestrator:
         if needs_viz:
             return "visualize"
         else:
-            # Set final response if not already set
-            if not state.get("final_response"):
-                state["final_response"] = state.get("analysis", "Analysis completed")
             return "end"
     
     def _get_relevant_schema(self, question: str) -> str:

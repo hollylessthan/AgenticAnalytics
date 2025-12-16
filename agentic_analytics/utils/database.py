@@ -25,7 +25,12 @@ def get_schema_info(database_path: str) -> str:
     for table in tables:
         table_name = table[0]
         
-        # Get table schema
+        # Validate table name to prevent SQL injection
+        # Only allow alphanumeric and underscore characters
+        if not table_name.replace('_', '').isalnum():
+            continue
+        
+        # Get table schema (safe to use f-string after validation)
         cursor.execute(f"PRAGMA table_info({table_name});")
         columns = cursor.fetchall()
         

@@ -32,7 +32,12 @@ class VectorStore:
         
         self.documents: List[Dict[str, Any]] = []
         self.index: Optional[faiss.Index] = None
-        self.dimension: int = 1536  # OpenAI embedding dimension
+        # Embedding dimension for OpenAI text-embedding-3-small model
+        # Different models may require different dimensions:
+        # - text-embedding-3-small: 1536
+        # - text-embedding-3-large: 3072
+        # - text-embedding-ada-002: 1536
+        self.dimension: int = 1536
         
         if store_type == "faiss":
             self._init_faiss()
