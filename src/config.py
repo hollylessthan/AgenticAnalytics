@@ -1,0 +1,112 @@
+"""Configuration management for the application."""
+
+import os
+from typing import Optional, Literal
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field
+
+# Load environment variables
+load_dotenv()
+
+
+class Config(BaseModel):
+    """Application configuration."""
+    
+    # LLM Provider Settings
+    llm_provider: Literal["openai", "anthropic", "google", "bedrock", "azure"] = os.getenv(
+        "LLM_PROVIDER", "openai"
+    )
+    
+    # API Keys for different providers
+    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
+    anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
+    google_api_key: str = os.getenv("GOOGLE_API_KEY", "")
+    aws_access_key_id: str = os.getenv("AWS_ACCESS_KEY_ID", "")
+    aws_secret_access_key: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+    aws_region: str = os.getenv("AWS_REGION", "us-east-1")
+    azure_openai_api_key: str = os.getenv("AZURE_OPENAI_API_KEY", "")
+    azure_openai_endpoint: str = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    
+    # Database Settings
+    database_type: Literal[
+        "sqlite", "postgresql", "mysql", "duckdb", "snowflake", "redshift", "bigquery"
+    ] = os.getenv("DATABASE_TYPE", "duckdb")
+    database_url: str = os.getenv("DATABASE_URL", "duckdb:///./testing/tpcds_1gb.duckdb")
+    
+    # Snowflake specific
+    snowflake_account: Optional[str] = os.getenv("SNOWFLAKE_ACCOUNT")
+    snowflake_user: Optional[str] = os.getenv("SNOWFLAKE_USER")
+    snowflake_password: Optional[str] = os.getenv("SNOWFLAKE_PASSWORD")
+    snowflake_database: Optional[str] = os.getenv("SNOWFLAKE_DATABASE")
+    snowflake_schema: Optional[str] = os.getenv("SNOWFLAKE_SCHEMA")
+    snowflake_warehouse: Optional[str] = os.getenv("SNOWFLAKE_WAREHOUSE")
+    
+    # BigQuery specific
+    bigquery_project: Optional[str] = os.getenv("BIGQUERY_PROJECT")
+    bigquery_credentials_path: Optional[str] = os.getenv("BIGQUERY_CREDENTIALS_PATH")
+    
+    # Vector Store Settings
+    vector_store_type: Literal[
+        "faiss", "weaviate", "opensearch", "kendra", "azure_search", "vertex_ai", "pinecone", "chroma"
+    ] = os.getenv("VECTOR_STORE_TYPE", "faiss")
+    
+    # Embedding Model Settings
+    embedding_provider: Literal["openai", "huggingface", "cohere", "bedrock", "vertex_ai"] = os.getenv(
+        "EMBEDDING_PROVIDER", "openai"
+    )
+    embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002")
+    
+    # Weaviate
+    weaviate_url: Optional[str] = os.getenv("WEAVIATE_URL")
+    weaviate_api_key: Optional[str] = os.getenv("WEAVIATE_API_KEY")
+    
+    # OpenSearch
+    opensearch_url: Optional[str] = os.getenv("OPENSEARCH_URL")
+    opensearch_username: Optional[str] = os.getenv("OPENSEARCH_USERNAME")
+    opensearch_password: Optional[str] = os.getenv("OPENSEARCH_PASSWORD")
+    
+    # AWS Kendra
+    kendra_index_id: Optional[str] = os.getenv("KENDRA_INDEX_ID")
+    
+    # Azure Cognitive Search
+    azure_search_endpoint: Optional[str] = os.getenv("AZURE_SEARCH_ENDPOINT")
+    azure_search_key: Optional[str] = os.getenv("AZURE_SEARCH_KEY")
+    azure_search_index_name: Optional[str] = os.getenv("AZURE_SEARCH_INDEX_NAME")
+    
+    # Google Vertex AI Vector Search
+    vertex_ai_index_id: Optional[str] = os.getenv("VERTEX_AI_INDEX_ID")
+    vertex_ai_index_endpoint: Optional[str] = os.getenv("VERTEX_AI_INDEX_ENDPOINT")
+    
+    # Pinecone
+    pinecone_api_key: Optional[str] = os.getenv("PINECONE_API_KEY")
+    pinecone_environment: Optional[str] = os.getenv("PINECONE_ENVIRONMENT")
+    pinecone_index_name: Optional[str] = os.getenv("PINECONE_INDEX_NAME")
+    
+    # Chroma
+    chroma_host: Optional[str] = os.getenv("CHROMA_HOST")
+    chroma_port: Optional[int] = int(os.getenv("CHROMA_PORT", "8000")) if os.getenv("CHROMA_PORT") else 8000
+    
+    # Cohere (for embeddings)
+    cohere_api_key: Optional[str] = os.getenv("COHERE_API_KEY")
+    
+    # HuggingFace (for embeddings)
+    huggingface_api_key: Optional[str] = os.getenv("HUGGINGFACE_API_KEY")
+    
+    # Agent Settings
+    max_iterations: int = int(os.getenv("MAX_ITERATIONS", "10"))
+    agent_temperature: float = float(os.getenv("AGENT_TEMPERATURE", "0.0"))
+    agent_model: str = os.getenv(
+        "AGENT_MODEL",
+        "gpt-4.1"  # Default model
+    )
+    
+    # Streamlit
+    streamlit_port: int = int(os.getenv("STREAMLIT_PORT", "8501"))
+    
+    class Config:
+        """Pydantic config."""
+        env_file = ".env"
+
+
+# Global config instance
+config = Config()

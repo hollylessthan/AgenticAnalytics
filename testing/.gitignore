@@ -1,0 +1,21 @@
+# TPC-DS test data (not tracked)
+data/
+tpcds-kit/
+*.duckdb
+*.duckdb.wal
+
+# RAG documents (generated)
+rag_documents/
+
+# Test results
+test_results.json
+test_results_*.json
+
+# Vector stores
+vector_store/
+faiss_index/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo

@@ -1,0 +1,58 @@
+# Core dependencies
+streamlit>=1.30.0
+python-dotenv>=1.0.0
+
+# LangChain and LangGraph
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-community>=0.0.20
+langchain-text-splitters>=0.0.1
+langgraph>=0.0.20
+
+# LLM Providers (install based on your needs)
+langchain-openai>=0.0.5
+# langchain-anthropic>=0.1.0  # For Claude
+# langchain-google-genai>=0.0.5  # For Gemini
+# langchain-aws>=0.0.1  # For Bedrock
+
+# Vector stores - Core
+faiss-cpu>=1.7.4
+
+# Vector stores - Optional (install based on your needs)
+# weaviate-client>=3.25.0  # For Weaviate
+# opensearch-py>=2.3.0  # For OpenSearch
+# pinecone-client>=2.2.0  # For Pinecone
+# langchain-pinecone>=0.0.1  # For Pinecone
+# chromadb>=0.4.0  # For Chroma
+# langchain-chroma>=0.1.0  # For Chroma
+# azure-search-documents>=11.4.0  # For Azure Search
+
+# Embedding models - Optional
+# langchain-huggingface>=0.0.1  # For HuggingFace embeddings
+# sentence-transformers>=2.2.0  # For local embeddings
+# langchain-cohere>=0.0.1  # For Cohere embeddings
+# langchain-google-vertexai>=0.1.0  # For Vertex AI embeddings
+
+# Database connectors - Core
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.9  # PostgreSQL
+pymysql>=1.1.0  # MySQL
+
+# Database connectors - Optional (install as needed)
+duckdb>=0.9.0  # For DuckDB (required for testing infrastructure)
+duckdb-engine>=0.9.0  # SQLAlchemy driver for DuckDB
+# snowflake-sqlalchemy>=1.5.0  # For Snowflake
+# redshift-connector>=2.0.0  # For Redshift
+# sqlalchemy-redshift>=0.8.0  # For Redshift
+# sqlalchemy-bigquery>=1.8.0  # For BigQuery
+
+# Data analysis and visualization
+pandas>=2.1.0
+numpy>=1.24.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+plotly>=5.18.0
+
+# Utilities
+pydantic>=2.0.0
+tiktoken>=0.5.0

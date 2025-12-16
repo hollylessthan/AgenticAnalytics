@@ -205,3 +205,27 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Session data - user conversations and preferences
+data/sessions/*.json
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+data/*.db
+
+# Test data - TPC-DS benchmark datasets
+testing/data/tpcds/
+*.duckdb
+testing/*.duckdb
+tpcds-kit/
+testing/rag_documents/
+
+# Generated outputs
+outputs/
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.pdf
