@@ -17,10 +17,19 @@ class VectorStore:
             store_type: Type of vector store ('faiss' or 'weaviate')
         """
         self.store_type = store_type
-        self.embeddings = OpenAIEmbeddings(
-            model=settings.embedding_model,
-            api_key=settings.openai_api_key
-        )
+        self.embeddings = None
+        
+        # Only initialize embeddings if API key is available
+        if settings.openai_api_key:
+            try:
+                self.embeddings = OpenAIEmbeddings(
+                    model=settings.embedding_model,
+                    api_key=settings.openai_api_key
+                )
+            except Exception as e:
+                print(f"Warning: Failed to initialize embeddings: {e}")
+                self.embeddings = None
+        
         self.documents: List[Dict[str, Any]] = []
         self.index: Optional[faiss.Index] = None
         self.dimension: int = 1536  # OpenAI embedding dimension
@@ -55,16 +64,25 @@ class VectorStore:
         if not documents:
             return
         
+        # If embeddings are not initialized, just store the documents without embeddings
+        if self.embeddings is None:
+            self.documents.extend(documents)
+            return
+        
         # Extract texts
         texts = [doc.get("text", "") for doc in documents]
         
         # Generate embeddings
-        embeddings = self.embeddings.embed_documents(texts)
-        
-        if self.store_type == "faiss":
-            self._add_to_faiss(embeddings, documents)
-        elif self.store_type == "weaviate":
-            self._add_to_weaviate(embeddings, documents)
+        try:
+            embeddings = self.embeddings.embed_documents(texts)
+            
+            if self.store_type == "faiss":
+                self._add_to_faiss(embeddings, documents)
+            elif self.store_type == "weaviate":
+                self._add_to_weaviate(embeddings, documents)
+        except Exception as e:
+            print(f"Warning: Failed to generate embeddings: {e}")
+            self.documents.extend(documents)
     
     def _add_to_faiss(self, embeddings: List[List[float]], documents: List[Dict[str, Any]]):
         """Add embeddings to FAISS index."""
@@ -95,26 +113,31 @@ class VectorStore:
     
     def _search_faiss(self, query: str, k: int) -> List[Dict[str, Any]]:
         """Search FAISS index."""
-        if self.index.ntotal == 0:
-            return []
+        if self.index.ntotal == 0 or self.embeddings is None:
+            # If no embeddings, return all documents (fallback)
+            return self.documents[:k] if self.documents else []
         
-        # Generate query embedding
-        query_embedding = self.embeddings.embed_query(query)
-        query_array = np.array([query_embedding]).astype('float32')
-        
-        # Search
-        k = min(k, self.index.ntotal)
-        distances, indices = self.index.search(query_array, k)
-        
-        # Get matching documents
-        results = []
-        for i, idx in enumerate(indices[0]):
-            if idx < len(self.documents):
-                doc = self.documents[idx].copy()
-                doc['score'] = float(distances[0][i])
-                results.append(doc)
-        
-        return results
+        try:
+            # Generate query embedding
+            query_embedding = self.embeddings.embed_query(query)
+            query_array = np.array([query_embedding]).astype('float32')
+            
+            # Search
+            k = min(k, self.index.ntotal)
+            distances, indices = self.index.search(query_array, k)
+            
+            # Get matching documents
+            results = []
+            for i, idx in enumerate(indices[0]):
+                if idx < len(self.documents):
+                    doc = self.documents[idx].copy()
+                    doc['score'] = float(distances[0][i])
+                    results.append(doc)
+            
+            return results
+        except Exception as e:
+            print(f"Warning: Search failed: {e}")
+            return self.documents[:k] if self.documents else []
     
     def _search_weaviate(self, query: str, k: int) -> List[Dict[str, Any]]:
         """Search Weaviate."""

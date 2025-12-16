@@ -1,7 +1,7 @@
 """Planning and coordination agent."""
 
 from typing import Any, Dict, List
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from agentic_analytics.agents.base import BaseAgent
 
 
