@@ -6,9 +6,9 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name="agentic-analytics",
     version="0.1.0",
-    author="Your Name",
-    author_email="your.email@example.com",
-    description="A multi-agent data analyst chatbot using LangGraph and Streamlit",
+    author="Fangyu Luo",
+    author_email="fangyu@example.com",
+    description="A flexible framework for agent-assisted analytical workflows with Data Copilot reference UI",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/hollylessthan/AgenticAnalytics",

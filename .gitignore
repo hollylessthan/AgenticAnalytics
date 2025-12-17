@@ -224,6 +224,7 @@ testing/rag_documents/
 
 # Generated outputs
 outputs/
+faiss_index/
 *.png
 *.jpg
 *.jpeg

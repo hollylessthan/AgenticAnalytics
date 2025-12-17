@@ -1,0 +1,277 @@
+/* Agentic Analytics - Theme Styles */
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* ===== LIGHT MODE (Default - prefers-color-scheme: light) ===== */
+@media (prefers-color-scheme: light) {
+    html, body {
+        background-color: #FAFAF8 !important;
+        color: #3C3C3C !important;
+    }
+    
+    [data-testid="stAppViewContainer"],
+    .appViewContainer,
+    .main {
+        background-color: #FAFAF8 !important;
+        color: #3C3C3C !important;
+    }
+    
+    [data-testid="stSidebar"],
+    .sidebar,
+    [data-testid="stSidebarNav"] {
+        background-color: #F5E8E0 !important;
+        color: #3C3C3C !important;
+    }
+    
+    [data-testid="stHeader"],
+    [data-testid="stToolbar"] {
+        background-color: #FAFAF8 !important;
+    }
+    
+    [data-testid="stBottomBlockContainer"] {
+        background-color: #FAFAF8 !important;
+    }
+    
+    body, .stText, .stMarkdown, p, span, div, label {
+        color: #3C3C3C !important;
+    }
+    
+    .main-header {
+        color: #D97F43 !important;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+        color: #D97F43 !important;
+    }
+    
+    .user-message {
+        background-color: #F5E8E0 !important;
+        color: #3C3C3C !important;
+    }
+    
+    .assistant-message {
+        background-color: #E8D4C4 !important;
+        color: #3C3C3C !important;
+    }
+    
+    .stButton > button {
+        background-color: #D97F43 !important;
+        color: #FFFFFF !important;
+    }
+    
+    .stButton > button:hover {
+        background-color: #C97035 !important;
+        color: #FFFFFF !important;
+    }
+    
+    input[type="text"],
+    input[type="password"],
+    input[type="email"],
+    input[type="number"],
+    textarea,
+    [data-testid="stChatInput"] input {
+        background-color: #FFFFFF !important;
+        color: #3C3C3C !important;
+        border-color: #E0D0C0 !important;
+        caret-color: #3C3C3C !important;
+    }
+    
+    input::placeholder,
+    textarea::placeholder {
+        color: #9A9A9A !important;
+    }
+    
+    .stDivider, hr {
+        border-color: #E0D0C0 !important;
+    }
+    
+    .stExpander, [data-testid="stExpander"] {
+        background-color: #F5E8E0 !important;
+        border-color: #E0D0C0 !important;
+    }
+    
+    [data-testid="stAlert"] {
+        background-color: #F0E8E0 !important;
+        color: #3C3C3C !important;
+        border-color: #E0D0C0 !important;
+    }
+    
+    /* Info and success alerts same style */
+    [data-testid="stAlert"][kind="info"],
+    [data-testid="stAlert"][kind="success"] {
+        background-color: #F0E8E0 !important;
+        color: #3C3C3C !important;
+        border-color: #E0D0C0 !important;
+    }
+    
+    .stDataFrame {
+        background-color: #E8C4A0 !important;
+        color: #2C1810 !important;
+    }
+    
+    .stCode, pre {
+        background-color: #E8C4A0 !important;
+        color: #2C1810 !important;
+        border-color: #D9B8A0 !important;
+    }
+    
+    code {
+        background-color: #FFF4E0 !important;
+        color: #B85C4F !important;
+    }
+}
+
+/* ===== DARK MODE (prefers-color-scheme: dark) ===== */
+@media (prefers-color-scheme: dark) {
+    html, body {
+        background-color: #2C1810 !important;
+        color: #F5E6D3 !important;
+    }
+    
+    [data-testid="stAppViewContainer"],
+    .appViewContainer,
+    .main {
+        background-color: #2C1810 !important;
+        color: #F5E6D3 !important;
+    }
+    
+    [data-testid="stSidebar"],
+    .sidebar,
+    [data-testid="stSidebarNav"] {
+        background-color: #3E2723 !important;
+        color: #F5E6D3 !important;
+    }
+    
+    [data-testid="stHeader"],
+    [data-testid="stToolbar"] {
+        background-color: #2C1810 !important;
+    }
+    
+    [data-testid="stBottomBlockContainer"] {
+        background-color: #2C1810 !important;
+    }
+    
+    body, .stText, .stMarkdown, p, span, div, label {
+        color: #F5E6D3 !important;
+    }
+    
+    .main-header {
+        color: #D97F43 !important;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+        color: #D97F43 !important;
+    }
+    
+    .user-message {
+        background-color: #D97F43 !important;
+        color: #2C1810 !important;
+    }
+    
+    .assistant-message {
+        background-color: #B85C4F !important;
+        color: #F5E6D3 !important;
+    }
+    
+    .stButton > button {
+        background-color: #D97F43 !important;
+        color: #2C1810 !important;
+    }
+    
+    .stButton > button:hover {
+        background-color: #E89A5C !important;
+        color: #2C1810 !important;
+    }
+    
+    input[type="text"],
+    input[type="password"],
+    input[type="email"],
+    input[type="number"],
+    textarea,
+    [data-testid="stChatInput"] input {
+        background-color: #3E2723 !important;
+        color: #F5E6D3 !important;
+        border-color: #5D4037 !important;
+        caret-color: #F5E6D3 !important;
+    }
+    
+    input::placeholder,
+    textarea::placeholder {
+        color: #B8956A !important;
+    }
+    
+    .stDivider, hr {
+        border-color: #5D4037 !important;
+    }
+    
+    .stExpander, [data-testid="stExpander"] {
+        background-color: #3E2723 !important;
+        border-color: #5D4037 !important;
+    }
+    
+    [data-testid="stAlert"] {
+        background-color: #4A3C35 !important;
+        color: #F5E6D3 !important;
+        border-color: #5D4037 !important;
+    }
+    
+    /* Info and success alerts same style */
+    [data-testid="stAlert"][kind="info"],
+    [data-testid="stAlert"][kind="success"] {
+        background-color: #4A3C35 !important;
+        color: #F5E6D3 !important;
+        border-color: #5D4037 !important;
+    }
+        color: #F5E6D3 !important;
+    }
+    
+    .stDataFrame {
+        background-color: #3E2723 !important;
+        color: #F5E6D3 !important;
+    }
+    
+    .stCode, pre {
+        background-color: #1A1A1A !important;
+        color: #F5E6D3 !important;
+        border-color: #5D4037 !important;
+    }
+    
+    code {
+        background-color: #3E2723 !important;
+        color: #D97F43 !important;
+    }
+}
+
+/* ===== UNIVERSAL (applies to both modes) ===== */
+.chat-message {
+    padding: 1.2rem;
+    border-radius: 1.2rem;
+    margin-bottom: 1rem;
+}
+
+.chat-message strong {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.stButton > button {
+    width: 100% !important;
+    border: none !important;
+    border-radius: 0.5rem !important;
+    padding: 0.5rem 1rem !important;
+    font-weight: 600 !important;
+}
+
+[data-testid="stChatInput"],
+[data-testid="stChatInputContainer"] {
+    background-color: transparent !important;
+}

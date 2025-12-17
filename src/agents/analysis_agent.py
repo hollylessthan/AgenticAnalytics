@@ -3,25 +3,27 @@
 import pandas as pd
 from typing import Dict, Any, Optional
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.language_models import BaseChatModel
 
-from .base import BaseAgent, AgentState
+from src.agents.base import BaseAgent, AgentState
+from src.config import Config
+from src.utils.llm_factory import get_llm
 
 
 class AnalysisAgent(BaseAgent):
     """Agent that performs data analysis using Python."""
     
-    def __init__(self, llm: BaseChatModel):
+    def __init__(self, config: Config):
         """Initialize Analysis Agent.
         
         Args:
-            llm: Language model instance
+            config: Configuration object
         """
         super().__init__(
+            config=config,
             name="analysis_agent",
             description="Performs statistical and analytical operations on data"
         )
-        self.llm = llm
+        self.llm = get_llm()
     
     def execute(self, state: AgentState) -> AgentState:
         """Execute data analysis.
@@ -33,6 +35,9 @@ class AnalysisAgent(BaseAgent):
             Updated state with analysis results
         """
         try:
+            # Add to agent chain
+            state.agent_chain.append("analysis_agent")
+            
             # Convert query results to DataFrame if needed
             if state.query_results is not None:
                 df = self._prepare_dataframe(state.query_results)
@@ -41,19 +46,21 @@ class AnalysisAgent(BaseAgent):
                 return state
             
             # Generate analysis code
-            analysis_code = self._generate_analysis_code(state.user_query, df)
+            analysis_code = self._generate_analysis_code(state.query, df)
             state.analysis_code = analysis_code
             
             # Execute analysis
             analysis_results = self._execute_analysis(analysis_code, df)
-            state.analysis_results = analysis_results
             
-            # Determine next step
-            state.next_agent = self._determine_next_step(state.user_query)
+            # Format results as string for communication agent
+            state.analysis_results = self._format_results(analysis_results)
+            
+            print(f"[Analysis Agent] Completed analysis with {len(analysis_results)} results")
             
         except Exception as e:
-            state.errors.append(f"Analysis Agent Error: {str(e)}")
-            state.next_agent = None
+            error_msg = f"Analysis Agent Error: {str(e)}"
+            state.errors.append(error_msg)
+            print(f"[Analysis Agent] {error_msg}")
         
         return state
     
@@ -88,29 +95,41 @@ class AnalysisAgent(BaseAgent):
         sample_data = df.head().to_dict()
         
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert data analyst. Generate Python code to analyze the given DataFrame.
+            ("system", """You are a statistical analysis specialist. Generate Python code to perform data analysis.
+
+Your ONLY job is to generate analysis code. Do NOT create visualizations or suggest next steps.
 
 DataFrame Information:
 {df_info}
 
-Sample Data:
+Sample Data (first few rows):
 {sample_data}
 
-Requirements:
-- Use pandas and numpy for analysis
-- Store results in a dictionary called 'results'
-- Include descriptive statistics, correlations, or other relevant analysis
-- Code should be safe and efficient
-- Don't include import statements or DataFrame creation
-- Assume df variable is already available
+Analysis Code Requirements:
+1. Use pandas (pd) and numpy (np) - both are available
+2. Store ALL results in a dictionary named 'results'
+3. Include descriptive labels for each result
+4. Focus on statistical analysis appropriate for the query
+5. DO NOT include import statements
+6. DO NOT create plots or visualizations
+7. Assume 'df' variable contains the data
+8. Handle missing values gracefully
+9. Convert numpy types to Python types for serialization
 
-Example:
+Common Analysis Patterns:
+- Descriptive stats: results['summary'] = df.describe().to_dict()
+- Aggregations: results['total'] = float(df['col'].sum())
+- Correlations: results['correlation'] = df.corr().to_dict()
+- Grouping: results['by_group'] = df.groupby('col')['val'].mean().to_dict()
+- Trends: results['trend'] = df['col'].pct_change().mean()
+- Distributions: results['percentiles'] = df['col'].quantile([0.25, 0.5, 0.75]).to_dict()
+
+Output Format:
 results = {{
-    'mean': df['column'].mean(),
-    'correlation': df.corr().to_dict(),
-    'summary': df.describe().to_dict()
+    'metric_name': value,
+    'another_metric': another_value
 }}"""),
-            ("user", "{question}")
+            ("user", "Analyze: {question}")
         ])
         
         response = self.llm.invoke(prompt.format_messages(
@@ -156,18 +175,29 @@ results = {{
         except Exception as e:
             return {'error': str(e), 'code': code}
     
-    def _determine_next_step(self, user_query: str) -> Optional[str]:
-        """Determine what agent should run next.
+    def _format_results(self, results: Dict[str, Any]) -> str:
+        """Format analysis results as readable string.
         
         Args:
-            user_query: User's query
+            results: Dictionary of analysis results
             
         Returns:
-            Next agent name or None
+            Formatted string
         """
-        query_lower = user_query.lower()
+        if not results:
+            return "No analysis results"
         
-        if any(word in query_lower for word in ["plot", "chart", "visualize", "graph", "show"]):
-            return "visualization"
-        else:
-            return None
+        if 'error' in results:
+            return f"Analysis error: {results['error']}"
+        
+        # Format results nicely
+        lines = ["Statistical Analysis Results:"]
+        for key, value in results.items():
+            if isinstance(value, dict):
+                lines.append(f"\n{key}:")
+                for k, v in value.items():
+                    lines.append(f"  {k}: {v}")
+            else:
+                lines.append(f"{key}: {value}")
+        
+        return "\n".join(lines)

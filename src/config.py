@@ -21,11 +21,19 @@ class Config(BaseModel):
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
     google_api_key: str = os.getenv("GOOGLE_API_KEY", "")
+    azure_openai_api_key: str = os.getenv("AZURE_OPENAI_API_KEY", "")
+    azure_openai_endpoint: str = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    
+    # AWS Settings (supports both explicit credentials and boto3/IAM role)
     aws_access_key_id: str = os.getenv("AWS_ACCESS_KEY_ID", "")
     aws_secret_access_key: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
     aws_region: str = os.getenv("AWS_REGION", "us-east-1")
-    azure_openai_api_key: str = os.getenv("AZURE_OPENAI_API_KEY", "")
-    azure_openai_endpoint: str = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    aws_profile: str = os.getenv("AWS_PROFILE", "")  # For boto3 profile-based auth
+    use_boto3_session: bool = os.getenv("USE_BOTO3_SESSION", "false").lower() == "true"
+    
+    # Redshift-specific IAM settings
+    redshift_iam_role: str = os.getenv("REDSHIFT_IAM_ROLE", "")  # IAM role ARN for Redshift
+    redshift_cluster_id: str = os.getenv("REDSHIFT_CLUSTER_ID", "")  # Cluster ID for temp credentials
     
     # Database Settings
     database_type: Literal[
@@ -99,6 +107,14 @@ class Config(BaseModel):
         "AGENT_MODEL",
         "gpt-4.1"  # Default model
     )
+    
+    # Cache Settings (NEW)
+    enable_data_cache: bool = os.getenv("ENABLE_DATA_CACHE", "true").lower() == "true"
+    max_cache_rows: int = int(os.getenv("MAX_CACHE_ROWS", "10000"))  # Max rows to cache
+    max_cache_size_mb: int = int(os.getenv("MAX_CACHE_SIZE_MB", "100"))  # Max cache size in MB
+    cache_ttl_seconds: int = int(os.getenv("CACHE_TTL_SECONDS", "3600"))  # 1 hour default
+    auto_sample_large_results: bool = os.getenv("AUTO_SAMPLE_LARGE_RESULTS", "false").lower() == "true"
+    sample_size: int = int(os.getenv("SAMPLE_SIZE", "1000"))  # Sample size for large results
     
     # Streamlit
     streamlit_port: int = int(os.getenv("STREAMLIT_PORT", "8501"))

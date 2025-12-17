@@ -434,6 +434,500 @@ LIMIT 20;
     print("  ✅ Created query_patterns.md")
 
 
+def generate_data_format_conversions(conn: duckdb.DuckDBPyConnection, output_dir: Path):
+    """Generate documentation for common data format conversions."""
+    print("   • Data format conversions...")
+    
+    content = """# Data Format Conversion Guide
+
+## Common Data Format Patterns and SQL Conversions
+
+This document provides SQL conversion patterns for common data formats found in TPC-DS and similar datasets.
+
+### Date and Time Formats
+
+#### 1. Julian Day Numbers (Surrogate Keys)
+**Pattern:** Integer values like `2451822`, `2451521`, `2459000`
+**Found in:** `*_date_sk` columns (e.g., `sr_returned_date_sk`, `ss_sold_date_sk`)
+**What it is:** Surrogate key representing days since January 1, 4713 BC (Julian calendar)
+
+**SQL Conversion (DuckDB/SQLite):**
+```sql
+-- Convert Julian Day surrogate key to readable date
+SELECT DATE(date_sk - 2440588) as readable_date
+FROM table_name;
+
+-- Example:
+SELECT 
+    sr_ticket_number,
+    sr_returned_date_sk as julian_day,
+    DATE(sr_returned_date_sk - 2440588) as return_date
+FROM store_returns
+WHERE sr_returned_date_sk IS NOT NULL
+LIMIT 5;
+```
+
+**Why subtract 2440588?**
+- Unix epoch (1970-01-01) corresponds to Julian Day 2440588
+- This converts Julian Day to Unix-based date system used by SQL
+
+#### 2. Time Surrogate Keys
+**Pattern:** Integer values like `28800`, `43200`, `64800`
+**Found in:** `*_time_sk` columns (e.g., `sr_return_time_sk`, `ss_sold_time_sk`)
+**What it is:** Seconds since midnight
+
+**SQL Conversion:**
+```sql
+-- Convert time_sk to readable time (HH:MM:SS)
+SELECT 
+    printf('%02d:%02d:%02d', 
+        time_sk / 3600,
+        (time_sk % 3600) / 60,
+        time_sk % 60
+    ) as readable_time
+FROM table_name;
+
+-- Example:
+SELECT 
+    sr_ticket_number,
+    sr_return_time_sk as seconds,
+    printf('%02d:%02d:%02d', 
+        sr_return_time_sk / 3600,
+        (sr_return_time_sk % 3600) / 60,
+        sr_return_time_sk % 60
+    ) as return_time
+FROM store_returns
+WHERE sr_return_time_sk IS NOT NULL
+LIMIT 5;
+```
+
+### TPC-DS Specific Format Examples
+"""
+    
+    # Get actual date ranges from the database
+    try:
+        date_stats = conn.execute("""
+            SELECT 
+                MIN(sr_returned_date_sk) as min_date_sk,
+                MAX(sr_returned_date_sk) as max_date_sk,
+                DATE(MIN(sr_returned_date_sk) - 2440588) as min_readable_date,
+                DATE(MAX(sr_returned_date_sk) - 2440588) as max_readable_date
+            FROM store_returns
+            WHERE sr_returned_date_sk IS NOT NULL
+        """).fetchone()
+        
+        if date_stats:
+            content += f"""
+#### Actual Date Range in Database
+
+**Store Returns Date Range:**
+- Surrogate Keys: {date_stats[0]} to {date_stats[1]}
+- Readable Dates: {date_stats[2]} to {date_stats[3]}
+
+"""
+    except Exception as e:
+        print(f"      Warning: Could not fetch date stats: {e}")
+    
+    content += """
+### Complete Conversion Examples
+
+#### All Returns with Readable Dates
+```sql
+-- Combine all return types with date conversions
+SELECT 
+    'store' as return_type,
+    sr_ticket_number as ticket_number,
+    DATE(sr_returned_date_sk - 2440588) as return_date,
+    printf('%02d:%02d:%02d', 
+        sr_return_time_sk / 3600,
+        (sr_return_time_sk % 3600) / 60,
+        sr_return_time_sk % 60
+    ) as return_time,
+    sr_return_amt as return_amount
+FROM store_returns
+WHERE sr_returned_date_sk IS NOT NULL
+
+UNION ALL
+
+SELECT 
+    'catalog' as return_type,
+    cr_order_number as ticket_number,
+    DATE(cr_returned_date_sk - 2440588) as return_date,
+    printf('%02d:%02d:%02d', 
+        cr_returned_time_sk / 3600,
+        (cr_returned_time_sk % 3600) / 60,
+        cr_returned_time_sk % 60
+    ) as return_time,
+    cr_return_amount as return_amount
+FROM catalog_returns
+WHERE cr_returned_date_sk IS NOT NULL
+
+UNION ALL
+
+SELECT 
+    'web' as return_type,
+    wr_order_number as ticket_number,
+    DATE(wr_returned_date_sk - 2440588) as return_date,
+    printf('%02d:%02d:%02d', 
+        wr_returned_time_sk / 3600,
+        (wr_returned_time_sk % 3600) / 60,
+        wr_returned_time_sk % 60
+    ) as return_time,
+    wr_return_amt as return_amount
+FROM web_returns
+WHERE wr_returned_date_sk IS NOT NULL
+
+ORDER BY return_date DESC
+LIMIT 1000;
+```
+
+#### Sales with Readable Dates
+```sql
+-- Most recent sales with readable dates and times
+SELECT 
+    ss_sold_date_sk as date_surrogate,
+    DATE(ss_sold_date_sk - 2440588) as sale_date,
+    printf('%02d:%02d:%02d', 
+        ss_sold_time_sk / 3600,
+        (ss_sold_time_sk % 3600) / 60,
+        ss_sold_time_sk % 60
+    ) as sale_time,
+    ss_item_sk as item_id,
+    ss_quantity,
+    ss_sales_price
+FROM store_sales
+WHERE ss_sold_date_sk IS NOT NULL
+ORDER BY ss_sold_date_sk DESC, ss_sold_time_sk DESC
+LIMIT 100;
+```
+
+### Best Practices
+
+1. **Always check for NULL values** before converting surrogate keys
+   ```sql
+   WHERE date_sk IS NOT NULL
+   ```
+
+2. **Use meaningful aliases** for converted columns
+   ```sql
+   DATE(sr_returned_date_sk - 2440588) as return_date
+   ```
+
+3. **Validate date ranges** - TPC-DS typically uses dates from 1998-2003
+   ```sql
+   WHERE DATE(date_sk - 2440588) BETWEEN '1998-01-01' AND '2003-12-31'
+   ```
+
+4. **Join with date_dim** for more date attributes
+   ```sql
+   SELECT 
+       sr.sr_ticket_number,
+       d.d_date as return_date,
+       d.d_day_name,
+       d.d_week_seq,
+       sr.sr_return_amt
+   FROM store_returns sr
+   JOIN date_dim d ON sr.sr_returned_date_sk = d.d_date_sk
+   ```
+
+### Common Pitfalls
+
+❌ **Don't do this:**
+```sql
+-- Forgetting NULL check (will error)
+SELECT DATE(sr_returned_date_sk - 2440588) FROM store_returns;
+
+-- Using wrong constant
+SELECT DATE(sr_returned_date_sk) FROM store_returns;
+-- Results in dates thousands of years in the past!
+
+-- Not checking date ranges
+SELECT DATE(invalid_sk - 2440588) FROM table;
+-- Could produce dates like year 1000 or year 5000
+```
+
+✅ **Do this:**
+```sql
+-- Proper NULL handling
+SELECT DATE(sr_returned_date_sk - 2440588) 
+FROM store_returns 
+WHERE sr_returned_date_sk IS NOT NULL;
+
+-- With validation
+SELECT DATE(sr_returned_date_sk - 2440588) as return_date
+FROM store_returns 
+WHERE sr_returned_date_sk IS NOT NULL
+  AND sr_returned_date_sk > 2450000  -- Reasonable date range
+  AND sr_returned_date_sk < 2460000;
+```
+
+### When to Use Surrogate Keys vs Date Dimension
+
+**Use Surrogate Keys directly when:**
+- Need quick date filtering
+- Don't need date attributes (day name, week, quarter, etc.)
+- Performing date arithmetic
+
+**Use Date Dimension (date_dim) when:**
+- Need date attributes (fiscal year, holiday indicator, etc.)
+- Doing calendar-based analysis
+- Need standardized date formats
+
+### Example: Combining Both Approaches
+```sql
+-- Get returns with both converted dates AND date attributes
+SELECT 
+    sr.sr_ticket_number,
+    DATE(sr.sr_returned_date_sk - 2440588) as return_date_converted,
+    d.d_date as return_date_from_dim,
+    d.d_day_name,
+    d.d_qoy as quarter,
+    d.d_holiday as is_holiday,
+    sr.sr_return_amt
+FROM store_returns sr
+LEFT JOIN date_dim d ON sr.sr_returned_date_sk = d.d_date_sk
+WHERE sr.sr_returned_date_sk IS NOT NULL
+ORDER BY sr.sr_returned_date_sk DESC
+LIMIT 100;
+```
+"""
+    
+    # Write to file
+    output_file = output_dir / "data_format_conversions.md"
+    output_file.write_text(content)
+    print(f"      ✓ Generated {output_file.name}")
+
+
+def generate_join_best_practices(output_dir: Path):
+    """Generate JOIN best practices guide for TPC-DS schema"""
+    doc = "# JOIN Best Practices for TPC-DS Schema\n\n"
+    doc += "## Overview\n\n"
+    doc += "The TPC-DS schema uses **surrogate keys** (IDs ending in `_sk`) to link fact tables with dimension tables. "
+    doc += "Always JOIN dimension tables to get human-readable values instead of showing raw IDs.\n\n"
+    
+    doc += "## Key Principle\n\n"
+    doc += "**ALWAYS join dimension tables when querying fact tables** to provide meaningful, readable results.\n\n"
+    doc += "❌ **Bad**: `SELECT customer_sk, sold_date_sk FROM store_sales`  \n"
+    doc += "✅ **Good**: `SELECT c.customer_id, c.first_name, d.d_date FROM store_sales s "
+    doc += "JOIN customer c ON s.ss_customer_sk = c.c_customer_sk "
+    doc += "JOIN date_dim d ON s.ss_sold_date_sk = d.d_date_sk`\n\n"
+    
+    doc += "## Common Dimension Tables and Their Keys\n\n"
+    
+    doc += "### Date Dimensions\n"
+    doc += "- **date_dim** (d_date_sk) → Use for ANY date key:\n"
+    doc += "  - `ss_sold_date_sk`, `sr_returned_date_sk`, `cs_sold_date_sk`, `ws_sold_date_sk`\n"
+    doc += "  - Provides: `d_date`, `d_year`, `d_month_seq`, `d_day_name`, `d_quarter_name`\n\n"
+    doc += "```sql\n"
+    doc += "-- Example: Convert date keys to actual dates\n"
+    doc += "SELECT \n"
+    doc += "    d.d_date,\n"
+    doc += "    d.d_year,\n"
+    doc += "    d.d_month_seq,\n"
+    doc += "    COUNT(*) as transactions\n"
+    doc += "FROM store_sales ss\n"
+    doc += "JOIN date_dim d ON ss.ss_sold_date_sk = d.d_date_sk\n"
+    doc += "GROUP BY d.d_date, d.d_year, d.d_month_seq;\n"
+    doc += "```\n\n"
+    
+    doc += "### Customer Dimensions\n"
+    doc += "- **customer** (c_customer_sk) → Basic customer info\n"
+    doc += "  - Provides: `c_customer_id`, `c_first_name`, `c_last_name`, `c_email_address`, `c_birth_country`\n"
+    doc += "- **customer_demographics** (cd_demo_sk) → Demographic details\n"
+    doc += "  - Provides: `cd_gender`, `cd_marital_status`, `cd_education_status`, `cd_credit_rating`\n"
+    doc += "- **customer_address** (ca_address_sk) → Address info\n"
+    doc += "  - Provides: `ca_street_name`, `ca_city`, `ca_state`, `ca_zip`, `ca_country`\n\n"
+    doc += "```sql\n"
+    doc += "-- Example: Enrich customer data\n"
+    doc += "SELECT \n"
+    doc += "    c.c_customer_id,\n"
+    doc += "    c.c_first_name || ' ' || c.c_last_name as full_name,\n"
+    doc += "    cd.cd_gender,\n"
+    doc += "    cd.cd_education_status,\n"
+    doc += "    ca.ca_city,\n"
+    doc += "    ca.ca_state\n"
+    doc += "FROM store_sales ss\n"
+    doc += "JOIN customer c ON ss.ss_customer_sk = c.c_customer_sk\n"
+    doc += "JOIN customer_demographics cd ON c.c_current_cdemo_sk = cd.cd_demo_sk\n"
+    doc += "JOIN customer_address ca ON c.c_current_addr_sk = ca.ca_address_sk;\n"
+    doc += "```\n\n"
+    
+    doc += "### Product/Item Dimensions\n"
+    doc += "- **item** (i_item_sk) → Product details\n"
+    doc += "  - Provides: `i_item_id`, `i_item_desc`, `i_brand`, `i_class`, `i_category`, `i_product_name`, `i_color`, `i_size`\n\n"
+    doc += "```sql\n"
+    doc += "-- Example: Show product details\n"
+    doc += "SELECT \n"
+    doc += "    i.i_product_name,\n"
+    doc += "    i.i_brand,\n"
+    doc += "    i.i_category,\n"
+    doc += "    i.i_color,\n"
+    doc += "    SUM(ss.ss_quantity) as units_sold\n"
+    doc += "FROM store_sales ss\n"
+    doc += "JOIN item i ON ss.ss_item_sk = i.i_item_sk\n"
+    doc += "GROUP BY i.i_product_name, i.i_brand, i.i_category, i.i_color;\n"
+    doc += "```\n\n"
+    
+    doc += "### Store Dimensions\n"
+    doc += "- **store** (s_store_sk) → Store information\n"
+    doc += "  - Provides: `s_store_id`, `s_store_name`, `s_number_employees`, `s_city`, `s_state`, `s_zip`\n\n"
+    doc += "```sql\n"
+    doc += "-- Example: Sales by store\n"
+    doc += "SELECT \n"
+    doc += "    s.s_store_name,\n"
+    doc += "    s.s_city,\n"
+    doc += "    s.s_state,\n"
+    doc += "    COUNT(*) as transactions,\n"
+    doc += "    SUM(ss.ss_sales_price) as revenue\n"
+    doc += "FROM store_sales ss\n"
+    doc += "JOIN store s ON ss.ss_store_sk = s.s_store_sk\n"
+    doc += "GROUP BY s.s_store_name, s.s_city, s.s_state;\n"
+    doc += "```\n\n"
+    
+    doc += "### Time Dimensions\n"
+    doc += "- **time_dim** (t_time_sk) → Time of day\n"
+    doc += "  - Provides: `t_time`, `t_hour`, `t_minute`, `t_am_pm`, `t_shift`, `t_meal_time`\n\n"
+    doc += "```sql\n"
+    doc += "-- Example: Sales by time of day\n"
+    doc += "SELECT \n"
+    doc += "    t.t_hour,\n"
+    doc += "    t.t_am_pm,\n"
+    doc += "    t.t_shift,\n"
+    doc += "    COUNT(*) as transactions\n"
+    doc += "FROM store_sales ss\n"
+    doc += "JOIN time_dim t ON ss.ss_sold_time_sk = t.t_time_sk\n"
+    doc += "GROUP BY t.t_hour, t.t_am_pm, t.t_shift;\n"
+    doc += "```\n\n"
+    
+    doc += "### Promotion Dimensions\n"
+    doc += "- **promotion** (p_promo_sk) → Promotion details\n"
+    doc += "  - Provides: `p_promo_id`, `p_promo_name`, `p_channel_email`, `p_channel_tv`, `p_discount_active`\n\n"
+    
+    doc += "### Warehouse Dimensions\n"
+    doc += "- **warehouse** (w_warehouse_sk) → Warehouse info\n"
+    doc += "  - Provides: `w_warehouse_id`, `w_warehouse_name`, `w_city`, `w_state`\n\n"
+    
+    doc += "## Fact Tables and Their Common JOINs\n\n"
+    doc += "### store_sales (Most Common)\n"
+    doc += "```sql\n"
+    doc += "SELECT \n"
+    doc += "    -- Date\n"
+    doc += "    d.d_date,\n"
+    doc += "    d.d_year,\n"
+    doc += "    -- Customer\n"
+    doc += "    c.c_customer_id,\n"
+    doc += "    c.c_first_name,\n"
+    doc += "    c.c_last_name,\n"
+    doc += "    -- Product\n"
+    doc += "    i.i_product_name,\n"
+    doc += "    i.i_brand,\n"
+    doc += "    i.i_category,\n"
+    doc += "    -- Store\n"
+    doc += "    s.s_store_name,\n"
+    doc += "    s.s_city,\n"
+    doc += "    -- Metrics\n"
+    doc += "    ss.ss_quantity,\n"
+    doc += "    ss.ss_sales_price\n"
+    doc += "FROM store_sales ss\n"
+    doc += "LEFT JOIN date_dim d ON ss.ss_sold_date_sk = d.d_date_sk\n"
+    doc += "LEFT JOIN customer c ON ss.ss_customer_sk = c.c_customer_sk\n"
+    doc += "LEFT JOIN item i ON ss.ss_item_sk = i.i_item_sk\n"
+    doc += "LEFT JOIN store s ON ss.ss_store_sk = s.s_store_sk\n"
+    doc += "LIMIT 100;\n"
+    doc += "```\n\n"
+    
+    doc += "### store_returns\n"
+    doc += "```sql\n"
+    doc += "SELECT \n"
+    doc += "    -- Date\n"
+    doc += "    d.d_date as return_date,\n"
+    doc += "    -- Customer\n"
+    doc += "    c.c_customer_id,\n"
+    doc += "    c.c_first_name,\n"
+    doc += "    -- Product\n"
+    doc += "    i.i_product_name,\n"
+    doc += "    -- Store\n"
+    doc += "    s.s_store_name,\n"
+    doc += "    -- Return info\n"
+    doc += "    sr.sr_return_quantity,\n"
+    doc += "    sr.sr_return_amt\n"
+    doc += "FROM store_returns sr\n"
+    doc += "LEFT JOIN date_dim d ON sr.sr_returned_date_sk = d.d_date_sk\n"
+    doc += "LEFT JOIN customer c ON sr.sr_customer_sk = c.c_customer_sk\n"
+    doc += "LEFT JOIN item i ON sr.sr_item_sk = i.i_item_sk\n"
+    doc += "LEFT JOIN store s ON sr.sr_store_sk = s.s_store_sk\n"
+    doc += "LIMIT 100;\n"
+    doc += "```\n\n"
+    
+    doc += "### catalog_sales & web_sales\n"
+    doc += "Similar patterns - join with:\n"
+    doc += "- `date_dim` for dates\n"
+    doc += "- `customer` for customer info\n"
+    doc += "- `item` for products\n"
+    doc += "- `warehouse` for fulfillment location\n"
+    doc += "- `ship_mode` for shipping details\n\n"
+    
+    doc += "## Default Query Template\n\n"
+    doc += "When user asks to \"show\" or \"get\" data from a fact table, ALWAYS use this pattern:\n\n"
+    doc += "```sql\n"
+    doc += "SELECT \n"
+    doc += "    -- Always include dimension values, not just keys\n"
+    doc += "    d.d_date,\n"
+    doc += "    c.c_customer_id,\n"
+    doc += "    i.i_product_name,\n"
+    doc += "    s.s_store_name,\n"
+    doc += "    -- Include metrics from fact table\n"
+    doc += "    fact.quantity_column,\n"
+    doc += "    fact.amount_column\n"
+    doc += "FROM {fact_table} fact\n"
+    doc += "LEFT JOIN date_dim d ON fact.date_sk_column = d.d_date_sk\n"
+    doc += "LEFT JOIN customer c ON fact.customer_sk_column = c.c_customer_sk\n"
+    doc += "LEFT JOIN item i ON fact.item_sk_column = i.i_item_sk\n"
+    doc += "LEFT JOIN store s ON fact.store_sk_column = s.s_store_sk\n"
+    doc += "WHERE {conditions}\n"
+    doc += "ORDER BY {sort_columns}\n"
+    doc += "LIMIT {row_limit};\n"
+    doc += "```\n\n"
+    
+    doc += "## Common Mistakes to Avoid\n\n"
+    doc += "❌ **Returning surrogate keys without dimension joins**:\n"
+    doc += "```sql\n"
+    doc += "-- BAD: Users see meaningless IDs\n"
+    doc += "SELECT ss_customer_sk, ss_item_sk, ss_sold_date_sk \n"
+    doc += "FROM store_sales;\n"
+    doc += "```\n\n"
+    doc += "✅ **Always join dimensions**:\n"
+    doc += "```sql\n"
+    doc += "-- GOOD: Users see meaningful values\n"
+    doc += "SELECT c.c_customer_id, i.i_product_name, d.d_date\n"
+    doc += "FROM store_sales ss\n"
+    doc += "JOIN customer c ON ss.ss_customer_sk = c.c_customer_sk\n"
+    doc += "JOIN item i ON ss.ss_item_sk = i.i_item_sk\n"
+    doc += "JOIN date_dim d ON ss.ss_sold_date_sk = d.d_date_sk;\n"
+    doc += "```\n\n"
+    doc += "❌ **Forgetting date dimensions**:\n"
+    doc += "```sql\n"
+    doc += "-- BAD: Date keys are not human readable\n"
+    doc += "SELECT ss_sold_date_sk FROM store_sales;\n"
+    doc += "```\n\n"
+    doc += "✅ **Always convert date keys**:\n"
+    doc += "```sql\n"
+    doc += "-- GOOD: Actual dates shown\n"
+    doc += "SELECT d.d_date, d.d_year \n"
+    doc += "FROM store_sales ss\n"
+    doc += "JOIN date_dim d ON ss.ss_sold_date_sk = d.d_date_sk;\n"
+    doc += "```\n\n"
+    
+    doc += "## Summary\n\n"
+    doc += "**Golden Rule**: Never return surrogate keys (`_sk` columns) directly. "
+    doc += "Always JOIN dimension tables to provide meaningful, human-readable results.\n"
+    
+    # Write to file
+    output_file = output_dir / "join_best_practices.md"
+    output_file.write_text(doc)
+    print(f"      ✓ Generated {output_file.name}")
+
+
 def generate_business_glossary(output_dir: Path):
     """Generate business terminology glossary"""
     doc = "# Business Glossary\n\n"
@@ -516,6 +1010,8 @@ def main():
     generate_schema_overview(conn, output_dir)
     generate_table_details(conn, output_dir)
     generate_query_patterns(output_dir)
+    generate_data_format_conversions(conn, output_dir)
+    generate_join_best_practices(output_dir)
     generate_business_glossary(output_dir)
     
     # Close connection

@@ -7,25 +7,27 @@ import seaborn as sns
 from typing import Optional
 from datetime import datetime
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.language_models import BaseChatModel
 
-from .base import BaseAgent, AgentState
+from src.agents.base import BaseAgent, AgentState
+from src.config import Config
+from src.utils.llm_factory import get_llm
 
 
 class VisualizationAgent(BaseAgent):
     """Agent that creates data visualizations."""
     
-    def __init__(self, llm: BaseChatModel):
+    def __init__(self, config: Config):
         """Initialize Visualization Agent.
         
         Args:
-            llm: Language model instance
+            config: Configuration object
         """
         super().__init__(
+            config=config,
             name="visualization_agent",
             description="Creates charts and visualizations from data"
         )
-        self.llm = llm
+        self.llm = get_llm()
         self.output_dir = "outputs/visualizations"
         os.makedirs(self.output_dir, exist_ok=True)
     
@@ -39,6 +41,9 @@ class VisualizationAgent(BaseAgent):
             Updated state with visualization path
         """
         try:
+            # Add to agent chain
+            state.agent_chain.append("visualization_agent")
+            
             # Prepare data
             if state.query_results is not None:
                 df = self._prepare_dataframe(state.query_results)
@@ -46,19 +51,35 @@ class VisualizationAgent(BaseAgent):
                 state.errors.append("No data available for visualization")
                 return state
             
-            # Generate visualization code
-            viz_code = self._generate_visualization_code(state.user_query, df)
+            # Check if updating existing visualization
+            if state.update_visualization and state.current_visualization_code:
+                print(f"[Visualization Agent] Updating existing visualization")
+                viz_code = self._update_visualization_code(
+                    state.query, 
+                    state.current_visualization_code,
+                    df
+                )
+            else:
+                # Generate new visualization code
+                viz_code = self._generate_visualization_code(state.query, df)
+            
             state.visualization_code = viz_code
             
             # Execute visualization
             viz_path = self._execute_visualization(viz_code, df)
             state.visualization_path = viz_path
+            state.visualization_paths.append(viz_path)
             
-            state.next_agent = None  # Visualization is typically the last step
+            # Cache the visualization code for potential updates
+            state.current_visualization_code = viz_code
+            
+            action = "Updated" if state.update_visualization else "Created"
+            print(f"[Visualization Agent] {action} visualization: {viz_path}")
             
         except Exception as e:
-            state.errors.append(f"Visualization Agent Error: {str(e)}")
-            state.next_agent = None
+            error_msg = f"Visualization Agent Error: {str(e)}"
+            state.errors.append(error_msg)
+            print(f"[Visualization Agent] {error_msg}")
         
         return state
     
@@ -92,32 +113,114 @@ class VisualizationAgent(BaseAgent):
         sample_data = df.head().to_dict()
         
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert data visualization specialist. Generate Python code to create a visualization.
+            ("system", """You are a data visualization specialist. Generate Python code to create effective visualizations.
+
+Your ONLY job is to generate visualization code. Do NOT perform analysis or suggest insights.
 
 DataFrame Information:
 {df_info}
 
-Sample Data:
+Sample Data (first few rows):
 {sample_data}
 
-Requirements:
-- Use matplotlib and/or seaborn
-- Create a figure using plt.figure()
-- Choose appropriate visualization type (bar, line, scatter, heatmap, etc.)
-- Add proper labels, title, and legend
-- Use plt.tight_layout() for better spacing
-- DO NOT include plt.show() or plt.savefig()
-- Assume df, plt, sns are already imported and available
-- Make it visually appealing with good color schemes
+Visualization Code Requirements:
+1. Use matplotlib (plt) and/or seaborn (sns) - both available
+2. Create figure: fig, ax = plt.subplots(figsize=(10, 6))
+3. Choose appropriate chart type based on data:
+   - Trends over time: Line chart (plt.plot or sns.lineplot)
+   - Comparisons: Bar chart (plt.bar or sns.barplot)
+   - Distributions: Histogram (plt.hist or sns.histplot)
+   - Relationships: Scatter plot (plt.scatter or sns.scatterplot)
+   - Correlations: Heatmap (sns.heatmap)
+   - Categories: Pie chart (plt.pie) or bar chart
+4. Add clear labels: ax.set_xlabel(), ax.set_ylabel(), ax.set_title()
+5. Include legend if multiple series: ax.legend()
+6. Use seaborn style for aesthetics: sns.set_style('whitegrid')
+7. Apply tight_layout: plt.tight_layout()
+8. DO NOT include plt.show() or plt.savefig() - these are handled separately
+9. DO NOT include import statements
+10. Assume df, plt, sns, pd are available
+11. Handle missing values appropriately
+12. Use color palettes for visual appeal: palette='viridis' or 'Set2'
 
-The code should create a complete visualization ready to be saved."""),
-            ("user", "{question}")
+Chart Type Selection Guide:
+- "trend" / "over time" → Line chart
+- "compare" / "by category" → Bar chart
+- "distribution" / "frequency" → Histogram
+- "correlation" / "relationship" → Scatter or heatmap
+- "breakdown" / "proportion" → Pie chart
+
+Example Structure:
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.plot(df['x'], df['y'])
+ax.set_xlabel('X Label')
+ax.set_ylabel('Y Label')
+ax.set_title('Chart Title')
+plt.tight_layout()"""),
+            ("user", "Create visualization for: {question}")
         ])
         
         response = self.llm.invoke(prompt.format_messages(
             df_info=df_info,
             sample_data=str(sample_data)[:500],
             question=user_query
+        ))
+        
+        # Clean up code
+        code = response.content.strip()
+        if code.startswith("```python"):
+            code = code[9:]
+        if code.startswith("```"):
+            code = code[3:]
+        if code.endswith("```"):
+            code = code[:-3]
+        
+        return code.strip()
+    
+    def _update_visualization_code(self, user_request: str, current_code: str, df: pd.DataFrame) -> str:
+        """Update existing visualization code based on user request.
+        
+        Args:
+            user_request: User's update request (e.g., "add x-axis label")
+            current_code: Current visualization code
+            df: DataFrame
+            
+        Returns:
+            Updated Python code string
+        """
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are updating an existing visualization based on user feedback.
+
+Current Visualization Code:
+```python
+{current_code}
+```
+
+User's Update Request: {request}
+
+Generate the UPDATED complete visualization code incorporating the changes.
+
+Rules:
+1. Keep the same chart type unless explicitly asked to change
+2. Preserve existing styling unless asked to change
+3. Make ONLY the requested changes
+4. Return complete executable code
+5. NO markdown, NO explanations
+6. Assume df, plt, sns, pd are available
+
+Common updates:
+- Labels: ax.set_xlabel(), ax.set_ylabel()
+- Title: ax.set_title()
+- Legend: ax.legend()
+- Colors: color='red', palette='viridis'
+- Size: figsize=(width, height)
+- Chart type: Change plot type (bar → line, etc.)"""),
+            ("user", "Update the visualization code")
+        ])
+        
+        response = self.llm.invoke(prompt.format_messages(
+            current_code=current_code,
+            request=user_request
         ))
         
         # Clean up code

@@ -92,16 +92,44 @@ def _get_google_llm(model: str, temperature: float, **kwargs) -> BaseChatModel:
 
 
 def _get_bedrock_llm(model: str, temperature: float, **kwargs) -> BaseChatModel:
-    """Get AWS Bedrock LLM instance."""
-    from langchain_aws import ChatBedrock
+    """Get AWS Bedrock LLM instance.
     
-    if not config.aws_access_key_id or not config.aws_secret_access_key:
-        raise ValueError("AWS credentials not set in environment")
+    Supports three authentication methods:
+    1. Explicit credentials: AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY
+    2. boto3 default session: Uses AWS_PROFILE or default credentials
+    3. IAM role: Auto-detected in EC2/ECS/Lambda environments
+    """
+    from langchain_aws import ChatBedrock
+    import boto3
+    
+    # Prepare Bedrock client based on auth method
+    if config.use_boto3_session or (not config.aws_access_key_id and not config.aws_secret_access_key):
+        # Use boto3 session (IAM role, profile, or default credentials)
+        session = boto3.Session(
+            region_name=config.aws_region,
+            profile_name=config.aws_profile if config.aws_profile else None
+        )
+        bedrock_client = session.client("bedrock-runtime")
+    elif config.aws_access_key_id and config.aws_secret_access_key:
+        # Use explicit credentials
+        bedrock_client = boto3.client(
+            "bedrock-runtime",
+            region_name=config.aws_region,
+            aws_access_key_id=config.aws_access_key_id,
+            aws_secret_access_key=config.aws_secret_access_key
+        )
+    else:
+        raise ValueError(
+            "AWS Bedrock requires either: "
+            "1) AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY, "
+            "2) AWS_PROFILE + USE_BOTO3_SESSION=true, or "
+            "3) IAM role in EC2/ECS/Lambda environment"
+        )
     
     return ChatBedrock(
         model_id=model,
         model_kwargs={"temperature": temperature},
-        region_name=config.aws_region,
+        client=bedrock_client,
         **kwargs
     )
 

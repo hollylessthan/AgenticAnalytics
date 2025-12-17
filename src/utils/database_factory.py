@@ -117,7 +117,12 @@ def _get_snowflake_engine(**kwargs) -> Engine:
 
 
 def _get_redshift_engine(**kwargs) -> Engine:
-    """Get Amazon Redshift engine."""
+    """Get Amazon Redshift engine.
+    
+    Supports two authentication methods:
+    1. User/password in DATABASE_URL: postgresql://user:pass@host:5439/db
+    2. IAM role: Set REDSHIFT_IAM_ROLE and REDSHIFT_CLUSTER_ID
+    """
     try:
         import redshift_connector
     except ImportError:
@@ -126,7 +131,44 @@ def _get_redshift_engine(**kwargs) -> Engine:
             "Install it with: pip install redshift-connector sqlalchemy-redshift"
         )
     
-    return create_engine(config.database_url, **kwargs)
+    # Check if using IAM role authentication
+    if config.redshift_iam_role and config.redshift_cluster_id:
+        # Parse connection details from DATABASE_URL
+        from sqlalchemy.engine.url import make_url
+        db_url = make_url(config.database_url)
+        
+        # Get temporary credentials using IAM role
+        import boto3
+        redshift_client = boto3.client("redshift", region_name=config.aws_region)
+        
+        try:
+            # Get cluster hostname and database from URL
+            cluster_host = db_url.host
+            database = db_url.database or "dev"
+            port = db_url.port or 5439
+            
+            # Get temporary credentials
+            response = redshift_client.get_cluster_credentials(
+                ClusterIdentifier=config.redshift_cluster_id,
+                DbUser=db_url.username or "awsuser",  # Default user for IAM
+                DurationSeconds=3600,
+                IamRoles=[config.redshift_iam_role]
+            )
+            
+            # Create connection with temporary credentials
+            connection_string = (
+                f"postgresql://{response['DbUser']}:{response['DbPassword']}"
+                f"@{cluster_host}:{port}/{database}"
+            )
+            return create_engine(connection_string, **kwargs)
+        except Exception as e:
+            raise ValueError(
+                f"Failed to get Redshift IAM credentials: {str(e)}. "
+                f"Ensure REDSHIFT_IAM_ROLE and REDSHIFT_CLUSTER_ID are set correctly."
+            )
+    else:
+        # Use standard connection with user/password
+        return create_engine(config.database_url, **kwargs)
 
 
 def _get_bigquery_engine(**kwargs) -> Engine:

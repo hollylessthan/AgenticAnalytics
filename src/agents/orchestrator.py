@@ -1,38 +1,58 @@
-"""Agent orchestrator using LangGraph."""
+"""Agent orchestrator using LangGraph with hybrid routing."""
 
+import time
 from typing import Dict, Any, Literal
 from langgraph.graph import StateGraph, END
-from langchain_core.prompts import ChatPromptTemplate
 
-from .base import AgentState
-from .sql_agent import SQLAgent
-from .analysis_agent import AnalysisAgent
-from .visualization_agent import VisualizationAgent
-from ..config import config
-from ..utils.llm_factory import get_llm
+from src.agents.base import AgentState
+from src.agents.sql_agent import SQLAgent
+from src.agents.analysis_agent import AnalysisAgent
+from src.agents.visualization_agent import VisualizationAgent
+from src.agents.communication_agent import CommunicationAgent
+from src.agents.query_classifier import QueryClassifier, PlanType
+from src.config import Config
+from src.utils.llm_factory import get_llm
 
 
 class AgentOrchestrator:
-    """Orchestrates multiple agents using LangGraph."""
+    """Orchestrates multiple agents using LangGraph with hybrid routing."""
     
-    def __init__(self, llm=None):
+    def __init__(self, config: Config = None, smart_limit: bool = True, smart_limit_rows: int = 1000, status_callback=None):
         """Initialize the orchestrator.
         
         Args:
-            llm: Optional LLM instance (uses factory if not provided)
+            config: Configuration object (creates default if None)
+            smart_limit: If True, automatically add LIMIT to SQL queries
+            smart_limit_rows: Default LIMIT value
+            status_callback: Optional callback function(agent_name: str, message: str, status: str)
         """
-        self.llm = llm or get_llm()
+        self.config = config or Config()
+        self.smart_limit = smart_limit
+        self.smart_limit_rows = smart_limit_rows
+        self.status_callback = status_callback
+        
+        # Initialize hybrid query classifier
+        self.classifier = QueryClassifier(self.config)
         
         # Initialize agents
-        self.sql_agent = SQLAgent(self.llm)
-        self.analysis_agent = AnalysisAgent(self.llm)
-        self.visualization_agent = VisualizationAgent(self.llm)
+        self.sql_agent = SQLAgent(self.config, smart_limit=smart_limit, smart_limit_rows=smart_limit_rows)
+        self.analysis_agent = AnalysisAgent(self.config)
+        self.visualization_agent = VisualizationAgent(self.config)
+        self.communication_agent = CommunicationAgent(self.config)
+        
+        # Metrics tracking
+        self.metrics = {
+            'tier1_count': 0,
+            'tier2_count': 0,
+            'tier3_count': 0,
+            'agent_latencies': {}
+        }
         
         # Build the graph
         self.graph = self._build_graph()
     
     def _build_graph(self) -> StateGraph:
-        """Build the agent workflow graph.
+        """Build the agent workflow graph with hybrid routing.
         
         Returns:
             Compiled StateGraph
@@ -40,24 +60,22 @@ class AgentOrchestrator:
         workflow = StateGraph(AgentState)
         
         # Add nodes
-        workflow.add_node("planner", self._plan_execution)
-        workflow.add_node("sql_agent", self.sql_agent.execute)
-        workflow.add_node("analysis_agent", self.analysis_agent.execute)
-        workflow.add_node("visualization_agent", self.visualization_agent.execute)
-        workflow.add_node("finalizer", self._finalize_response)
+        workflow.add_node("classifier", self._classify_query)
+        workflow.add_node("sql_agent", self._execute_sql_agent)
+        workflow.add_node("analysis_agent", self._execute_analysis_agent)
+        workflow.add_node("visualization_agent", self._execute_visualization_agent)
+        workflow.add_node("communication_agent", self._execute_communication_agent)
         
         # Set entry point
-        workflow.set_entry_point("planner")
+        workflow.set_entry_point("classifier")
         
-        # Add conditional edges
+        # Add conditional edges based on plan_type
         workflow.add_conditional_edges(
-            "planner",
-            self._route_from_planner,
+            "classifier",
+            self._route_from_classifier,
             {
-                "sql": "sql_agent",
-                "analysis": "analysis_agent",
-                "visualization": "visualization_agent",
-                "end": "finalizer"
+                "sql_agent": "sql_agent",
+                "communication_agent": "communication_agent"
             }
         )
         
@@ -65,10 +83,9 @@ class AgentOrchestrator:
             "sql_agent",
             self._route_from_sql,
             {
-                "analysis": "analysis_agent",
-                "visualization": "visualization_agent",
-                "finalizer": "finalizer",
-                "error": "finalizer"
+                "analysis_agent": "analysis_agent",
+                "visualization_agent": "visualization_agent",
+                "communication_agent": "communication_agent"
             }
         )
         
@@ -76,65 +93,199 @@ class AgentOrchestrator:
             "analysis_agent",
             self._route_from_analysis,
             {
-                "visualization": "visualization_agent",
-                "finalizer": "finalizer",
-                "error": "finalizer"
+                "visualization_agent": "visualization_agent",
+                "communication_agent": "communication_agent"
             }
         )
         
-        workflow.add_edge("visualization_agent", "finalizer")
-        workflow.add_edge("finalizer", END)
+        workflow.add_edge("visualization_agent", "communication_agent")
+        workflow.add_edge("communication_agent", END)
         
         return workflow.compile()
     
-    def _plan_execution(self, state: AgentState) -> AgentState:
-        """Plan which agents to use based on user query.
+    def _classify_query(self, state: AgentState) -> AgentState:
+        """Classify query using hybrid 3-tier approach with context awareness.
         
         Args:
             state: Current state
             
         Returns:
-            Updated state with next agent
+            Updated state with plan_type, confidence_score, and context flags
         """
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are a planning agent that determines which specialized agents to use.
-            
-Available agents:
-- sql_agent: Converts natural language to SQL queries and retrieves data
-- analysis_agent: Performs data analysis using Python
-- visualization_agent: Creates visualizations from data
-
-Analyze the user query and determine which agent should be used first.
-If the query requires data from a database, start with sql_agent.
-If the query is about analyzing existing data, start with analysis_agent.
-If the query is about creating a visualization, determine if data needs to be retrieved first.
-
-Respond with only one word: sql, analysis, visualization, or end."""),
-            ("user", "{query}")
-        ])
+        if self.status_callback:
+            self.status_callback("classifier", "🔍 Analyzing query type...", "running")
         
-        response = self.llm.invoke(prompt.format_messages(query=state.user_query))
-        next_agent = response.content.strip().lower()
+        start_time = time.time()
         
-        state.next_agent = next_agent
-        state.metadata["plan"] = next_agent
+        # Check for snapshot references (e.g., "use data from step 2", "original data")
+        has_reference, snapshot_id = self.classifier.extract_snapshot_reference(state.query)
+        if has_reference and state.state_history:
+            snapshot = state.get_snapshot(snapshot_id)
+            if snapshot and snapshot.dataframe is not None:
+                # Load data from referenced snapshot
+                state.cached_dataframe = snapshot.dataframe
+                state.last_sql_query = snapshot.sql_query
+                state.referenced_snapshot_id = snapshot_id
+                print(f"[Orchestrator] 📸 Using data from snapshot #{snapshot_id}: {snapshot.query[:60]}...")
+        
+        # Check if we have cached data
+        has_cached_data = state.cached_dataframe is not None
+        
+        # Use hybrid classifier with context awareness
+        plan_type, confidence, context_flags = self.classifier.classify_query(
+            state.query, 
+            has_cached_data=has_cached_data
+        )
+        
+        # Update state
+        state.plan_type = plan_type.value
+        state.confidence_score = confidence
+        state.reuse_data = context_flags['reuse_data']
+        state.update_visualization = context_flags['update_viz']
+        state.agent_chain.append("classifier")
+        
+        # Track which tier was used (approximate based on confidence)
+        if confidence == 1.0:
+            self.metrics['tier1_count'] += 1
+            state.metadata['routing_tier'] = 'T1_regex'
+        elif confidence >= 0.85:
+            self.metrics['tier2_count'] += 1
+            state.metadata['routing_tier'] = 'T2_keyword'
+        else:
+            self.metrics['tier3_count'] += 1
+            state.metadata['routing_tier'] = 'T3_llm'
+        
+        elapsed = time.time() - start_time
+        self.metrics['agent_latencies']['classifier'] = elapsed
+        
+        context_info = []
+        if context_flags['reuse_data']:
+            context_info.append("reuse_data")
+        if context_flags['update_viz']:
+            context_info.append("update_viz")
+        
+        if self.status_callback:
+            plan_msg = f"✓ Plan: {state.plan_type} (confidence: {state.confidence_score:.0%})"
+            self.status_callback("classifier", plan_msg, "complete")
+        
+        context_str = f", Context: {', '.join(context_info)}" if context_info else ""
+        print(f"[Classifier] Plan: {plan_type.value}, Confidence: {confidence:.2f}, "
+              f"Tier: {state.metadata['routing_tier']}{context_str}, Time: {elapsed*1000:.1f}ms")
         
         return state
     
-    def _route_from_planner(self, state: AgentState) -> str:
-        """Route from planner to appropriate agent.
+    def _route_from_classifier(self, state: AgentState) -> str:
+        """Route from classifier based on plan_type and context.
         
         Args:
             state: Current state
             
         Returns:
-            Next agent name
+            Next node name
         """
-        next_agent = state.next_agent or "end"
-        return next_agent
+        # If reusing data, skip SQL agent
+        if state.reuse_data and state.cached_dataframe is not None:
+            print("[Orchestrator] Reusing cached data, skipping SQL agent")
+            
+            # Restore cached data to query_results
+            state.query_results = state.cached_dataframe
+            state.sql_query = state.last_sql_query
+            
+            # Check if query asks for data transformation (convert, format, etc.)
+            query_lower = state.query.lower()
+            needs_transformation = any(keyword in query_lower for keyword in ['convert', 'format', 'transform', 'change to', 'update the'])
+            
+            # If asking for data transformation, need to run SQL agent
+            if needs_transformation:
+                print("[Orchestrator] Data transformation requested, running SQL agent")
+                return "sql_agent"
+            
+            # Route based on what user wants to do with the data
+            if state.update_visualization or state.plan_type == PlanType.SQL_VIZ.value:
+                return "visualization_agent"
+            elif state.plan_type == PlanType.SQL_ANALYSIS.value or state.plan_type == PlanType.SQL_ANALYSIS_VIZ.value:
+                return "analysis_agent"
+            else:
+                # For explanation questions, go directly to communication agent
+                return "communication_agent"
+        
+        # Normal flow: start with SQL agent
+        return "sql_agent"
+    
+    def _execute_sql_agent(self, state: AgentState) -> AgentState:
+        """Execute SQL agent with timing."""
+        if self.status_callback:
+            self.status_callback("sql_agent", "💾 Generating and executing SQL query...", "running")
+        
+        start_time = time.time()
+        state = self.sql_agent.execute(state)
+        elapsed = time.time() - start_time
+        self.metrics['agent_latencies']['sql_agent'] = elapsed
+        print(f"[SQL Agent] Time: {elapsed*1000:.1f}ms")
+        
+        if self.status_callback:
+            if state.query_results is not None:
+                import pandas as pd
+                if isinstance(state.query_results, pd.DataFrame):
+                    row_count = len(state.query_results)
+                    self.status_callback("sql_agent", f"✓ Retrieved {row_count:,} rows", "complete")
+                else:
+                    self.status_callback("sql_agent", "✓ Query executed", "complete")
+            else:
+                self.status_callback("sql_agent", "✓ Query completed", "complete")
+        
+        return state
+    
+    def _execute_analysis_agent(self, state: AgentState) -> AgentState:
+        """Execute analysis agent with timing."""
+        if self.status_callback:
+            self.status_callback("analysis_agent", "📊 Running statistical analysis...", "running")
+        
+        start_time = time.time()
+        state = self.analysis_agent.execute(state)
+        elapsed = time.time() - start_time
+        self.metrics['agent_latencies']['analysis_agent'] = elapsed
+        print(f"[Analysis Agent] Time: {elapsed*1000:.1f}ms")
+        
+        if self.status_callback:
+            self.status_callback("analysis_agent", "✓ Analysis complete", "complete")
+        
+        return state
+    
+    def _execute_visualization_agent(self, state: AgentState) -> AgentState:
+        """Execute visualization agent with timing."""
+        if self.status_callback:
+            self.status_callback("visualization_agent", "📈 Creating visualization...", "running")
+        
+        start_time = time.time()
+        state = self.visualization_agent.execute(state)
+        elapsed = time.time() - start_time
+        self.metrics['agent_latencies']['visualization_agent'] = elapsed
+        print(f"[Visualization Agent] Time: {elapsed*1000:.1f}ms")
+        
+        if self.status_callback:
+            self.status_callback("visualization_agent", "✓ Chart generated", "complete")
+        
+        return state
+    
+    def _execute_communication_agent(self, state: AgentState) -> AgentState:
+        """Execute communication agent with timing."""
+        if self.status_callback:
+            self.status_callback("communication_agent", "💬 Preparing response...", "running")
+        
+        start_time = time.time()
+        state = self.communication_agent.execute(state)
+        elapsed = time.time() - start_time
+        self.metrics['agent_latencies']['communication_agent'] = elapsed
+        print(f"[Communication Agent] Time: {elapsed*1000:.1f}ms")
+        
+        if self.status_callback:
+            self.status_callback("communication_agent", "✓ Response ready", "complete")
+        
+        return state
     
     def _route_from_sql(self, state: AgentState) -> str:
-        """Route from SQL agent.
+        """Route from SQL agent based on plan_type.
         
         Args:
             state: Current state
@@ -142,18 +293,24 @@ Respond with only one word: sql, analysis, visualization, or end."""),
         Returns:
             Next node name
         """
+        # If errors occurred, go straight to communication
         if state.errors:
-            return "error"
+            return "communication_agent"
         
-        if state.next_agent == "analysis":
-            return "analysis"
-        elif state.next_agent == "visualization":
-            return "visualization"
+        # Route based on classified plan type
+        if state.plan_type == PlanType.SQL_ONLY.value:
+            return "communication_agent"
+        elif state.plan_type == PlanType.SQL_ANALYSIS.value:
+            return "analysis_agent"
+        elif state.plan_type == PlanType.SQL_VIZ.value:
+            return "visualization_agent"
+        elif state.plan_type == PlanType.SQL_ANALYSIS_VIZ.value:
+            return "analysis_agent"  # Analysis first, then viz
         else:
-            return "finalizer"
+            return "communication_agent"
     
     def _route_from_analysis(self, state: AgentState) -> str:
-        """Route from analysis agent.
+        """Route from analysis agent based on plan_type.
         
         Args:
             state: Current state
@@ -161,72 +318,76 @@ Respond with only one word: sql, analysis, visualization, or end."""),
         Returns:
             Next node name
         """
+        # If errors occurred, go straight to communication
         if state.errors:
-            return "error"
+            return "communication_agent"
         
-        if state.next_agent == "visualization":
-            return "visualization"
+        # If plan includes visualization, route there
+        if state.plan_type == PlanType.SQL_ANALYSIS_VIZ.value:
+            return "visualization_agent"
         else:
-            return "finalizer"
+            return "communication_agent"
     
-    def _finalize_response(self, state: AgentState) -> AgentState:
-        """Generate final response to user.
+    def get_metrics(self) -> Dict[str, Any]:
+        """Get routing and performance metrics.
         
-        Args:
-            state: Current state
-            
         Returns:
-            Updated state with final answer
+            Dictionary with metrics
         """
-        if state.errors:
-            state.final_answer = f"I encountered errors while processing your request:\n" + "\n".join(state.errors)
-            return state
-        
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are a data analyst assistant. Generate a clear, concise response to the user's query based on the results.
-            
-Include:
-- Summary of what was done
-- Key findings from the data
-- Any visualizations created
-- Actionable insights if applicable
-
-Be professional but conversational."""),
-            ("user", """User Query: {query}
-
-SQL Query: {sql_query}
-Query Results: {results}
-Analysis Results: {analysis}
-Visualization: {viz}
-
-Generate a comprehensive response.""")
+        total_queries = sum([
+            self.metrics['tier1_count'],
+            self.metrics['tier2_count'],
+            self.metrics['tier3_count']
         ])
         
-        response = self.llm.invoke(prompt.format_messages(
-            query=state.user_query,
-            sql_query=state.sql_query or "N/A",
-            results=str(state.query_results)[:500] if state.query_results else "N/A",
-            analysis=str(state.analysis_results) if state.analysis_results else "N/A",
-            viz=state.visualization_path or "N/A"
-        ))
+        if total_queries == 0:
+            return self.metrics
         
-        state.final_answer = response.content
-        return state
+        return {
+            **self.metrics,
+            'tier_percentages': {
+                'tier1': (self.metrics['tier1_count'] / total_queries) * 100,
+                'tier2': (self.metrics['tier2_count'] / total_queries) * 100,
+                'tier3': (self.metrics['tier3_count'] / total_queries) * 100,
+            },
+            'total_queries': total_queries
+        }
     
-    def run(self, user_query: str, conversation_history: list = None) -> AgentState:
-        """Run the orchestrator with a user query.
+    def run(self, user_query: str, conversation_history: list = None, previous_state: AgentState = None) -> AgentState:
+        """Run the orchestrator with a user query, optionally maintaining session state.
         
         Args:
             user_query: User's natural language query
             conversation_history: Previous conversation messages
+            previous_state: Previous AgentState to maintain cached data (optional)
             
         Returns:
             Final agent state
         """
+        start_time = time.time()
+        
+        # Create initial state, optionally inheriting cached data from previous state
         initial_state = AgentState(
-            user_query=user_query,
+            query=user_query,
+            user_query=user_query,  # Backward compatibility
             conversation_history=conversation_history or []
         )
         
+        # Inherit session state from previous query if provided
+        if previous_state:
+            initial_state.cached_dataframe = previous_state.cached_dataframe
+            initial_state.last_sql_query = previous_state.last_sql_query
+            initial_state.current_visualization_code = previous_state.current_visualization_code
+            print(f"[Orchestrator] Inherited session state from previous query")
+        
         final_state = self.graph.invoke(initial_state)
+        
+        # Convert dict to AgentState if needed (LangGraph returns dict)
+        if isinstance(final_state, dict):
+            final_state = AgentState(**final_state)
+        
+        total_time = time.time() - start_time
+        print(f"\n[Orchestrator] Total execution time: {total_time*1000:.1f}ms")
+        print(f"[Orchestrator] Agent chain: {' -> '.join(final_state.agent_chain)}")
+        
         return final_state
