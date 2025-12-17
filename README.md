@@ -98,10 +98,7 @@ That's it! Agentic Analytics automatically discovers your schema and indexes it 
 
 Watch a demo of Data Copilot in action:
 
-<video width="800" controls>
-  <source src="demos/DEMO-1217.mov" type="video/quicktime">
-  Your browser does not support the video tag. <a href="demos/DEMO-1217.mov">Download demo video</a>
-</video>
+https://github.com/user-attachments/assets/42e5ec63-d981-4aac-9908-539cc2d7ad2c
 
 **In this demo:**
 - Multi-agent SQL generation & execution
