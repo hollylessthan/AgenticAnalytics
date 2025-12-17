@@ -38,6 +38,11 @@ class SQLAgent(BaseAgent):
         Returns:
             Updated state with query results
         """
+        # Use retry wrapper for execution
+        return self.execute_with_retry(state, self._execute_impl)
+    
+    def _execute_impl(self, state: AgentState) -> AgentState:
+        """Implementation of SQL agent execution (wrapped in retry logic)."""
         try:
             # Add to agent chain
             state.agent_chain.append("sql_agent")
@@ -99,9 +104,8 @@ class SQLAgent(BaseAgent):
                 print(f"[SQL Agent] Cache: {cache_msg}")
             
         except Exception as e:
-            error_msg = f"SQL Agent Error: {str(e)}"
-            state.errors.append(error_msg)
-            print(f"[SQL Agent] {error_msg}")
+            # Re-raise so retry logic can handle it
+            raise
         
         return state
     

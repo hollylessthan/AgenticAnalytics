@@ -275,3 +275,65 @@ html, body {
 [data-testid="stChatInputContainer"] {
     background-color: transparent !important;
 }
+
+/* SQL Query Code Block Styling */
+[data-testid="stCodeBlock"],
+.stCodeBlock,
+pre,
+code {
+    background-color: #F8F8F8 !important;
+    color: #2D3436 !important;
+    border: 1px solid #E8E8E8 !important;
+    border-radius: 0.5rem !important;
+}
+
+/* Light mode - SQL readability */
+@media (prefers-color-scheme: light) {
+    [data-testid="stCodeBlock"],
+    .stCodeBlock,
+    pre {
+        background-color: #F5F5F5 !important;
+        color: #2D3436 !important;
+    }
+    
+    [data-testid="stCodeBlock"] pre,
+    .stCodeBlock pre,
+    pre code {
+        background-color: #F5F5F5 !important;
+        color: #2D3436 !important;
+    }
+    
+    /* Syntax highlighting for SQL keywords */
+    code {
+        background-color: #F5F5F5 !important;
+        color: #0066CC !important;
+        padding: 0.2rem 0.4rem !important;
+        border-radius: 0.3rem !important;
+    }
+}
+
+/* Dark mode - SQL readability */
+@media (prefers-color-scheme: dark) {
+    [data-testid="stCodeBlock"],
+    .stCodeBlock,
+    pre {
+        background-color: #2D2D30 !important;
+        color: #E8E8E8 !important;
+    }
+    
+    [data-testid="stCodeBlock"] pre,
+    .stCodeBlock pre,
+    pre code {
+        background-color: #2D2D30 !important;
+        color: #E8E8E8 !important;
+    }
+    
+    /* Syntax highlighting for SQL keywords */
+    code {
+        background-color: #3E3E42 !important;
+        color: #4EC9B0 !important;
+        padding: 0.2rem 0.4rem !important;
+        border-radius: 0.3rem !important;
+    }
+}
+

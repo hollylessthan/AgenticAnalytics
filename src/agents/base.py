@@ -1,9 +1,13 @@
 """Base agent classes and utilities."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable
 from pydantic import BaseModel, Field, model_validator
 from datetime import datetime
+import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ConversationSnapshot(BaseModel):
@@ -173,3 +177,68 @@ class BaseAgent(ABC):
             True if agent should continue, False otherwise
         """
         return state.next_agent is not None
+    
+    def execute_with_retry(
+        self,
+        state: AgentState,
+        execute_func: Callable[[AgentState], AgentState],
+        max_retries: int = None,
+        initial_delay_ms: int = None
+    ) -> AgentState:
+        """Execute a function with automatic retry on failure.
+        
+        Args:
+            state: Current agent state
+            execute_func: Function to execute (should accept state and return state)
+            max_retries: Maximum number of retries (defaults to config.agent_retry_count)
+            initial_delay_ms: Initial delay between retries in ms (defaults to config.agent_retry_delay_ms)
+            
+        Returns:
+            Updated state from successful execution or final failed attempt
+        """
+        # Use config values if not provided
+        if max_retries is None and self.config:
+            max_retries = getattr(self.config, 'agent_retry_count', 2)
+        else:
+            max_retries = max_retries or 2
+        
+        if initial_delay_ms is None and self.config:
+            initial_delay_ms = getattr(self.config, 'agent_retry_delay_ms', 500)
+        else:
+            initial_delay_ms = initial_delay_ms or 500
+        
+        delay_ms = initial_delay_ms
+        last_error = None
+        
+        for attempt in range(max_retries + 1):
+            try:
+                return execute_func(state)
+            except Exception as e:
+                last_error = e
+                
+                if attempt < max_retries:
+                    # Exponential backoff
+                    delay_seconds = delay_ms / 1000.0
+                    logger.debug(
+                        f"[{self.name}] Attempt {attempt + 1}/{max_retries + 1} failed: "
+                        f"{type(e).__name__}: {str(e)[:100]}. "
+                        f"Retrying in {delay_seconds:.1f}s..."
+                    )
+                    print(f"[{self.name}] Retrying in {delay_seconds:.1f}s... (Attempt {attempt + 1}/{max_retries})")
+                    time.sleep(delay_seconds)
+                    delay_ms = int(min(delay_ms * 2, 10000))  # Max 10s delay
+                else:
+                    # All retries exhausted
+                    logger.error(
+                        f"[{self.name}] Failed after {max_retries} retries: "
+                        f"{type(e).__name__}: {str(e)}"
+                    )
+                    print(f"[{self.name}] Failed after {max_retries} retries")
+        
+        # Return state with error if all retries failed
+        if last_error:
+            error_msg = f"❌ {self.name} failed after {max_retries} retries: {str(last_error)}"
+            state.errors.append(error_msg)
+            print(f"[{self.name}] {error_msg}")
+        
+        return state

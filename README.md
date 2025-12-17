@@ -94,6 +94,21 @@ streamlit run src/app.py
 
 That's it! Agentic Analytics automatically discovers your schema and indexes it for intelligent query generation.
 
+## 🎬 Quick Demo
+
+Watch a demo of Data Copilot in action:
+
+<video width="800" controls>
+  <source src="demos/DEMO-1217.mov" type="video/quicktime">
+  Your browser does not support the video tag. <a href="demos/DEMO-1217.mov">Download demo video</a>
+</video>
+
+**In this demo:**
+- Multi-agent SQL generation & execution
+- Real-time visualization & analysis
+- Stateful conversation memory
+- Streaming agent reasoning visibility
+
 ## 🚀 Quick Start
 
 ### Installation

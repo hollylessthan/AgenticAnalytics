@@ -12,6 +12,110 @@ import argparse
 from pathlib import Path
 from typing import Dict, List
 
+# TPC-DS column type definitions (proper types instead of all VARCHAR)
+TPCDS_COLUMN_TYPES = {
+    # Numeric columns
+    "quantity": "INTEGER",
+    "quantity_on_hand": "INTEGER", 
+    "inv_quantity_on_hand": "INTEGER",
+    "ss_quantity": "INTEGER",
+    "cs_quantity": "INTEGER",
+    "ws_quantity": "INTEGER",
+    "sr_return_quantity": "INTEGER",
+    "cr_return_quantity": "INTEGER",
+    "wr_return_quantity": "INTEGER",
+    "p_response_target": "INTEGER",
+    "cc_employees": "INTEGER",
+    "s_number_employees": "INTEGER",
+    "hd_dep_count": "INTEGER",
+    "hd_vehicle_count": "INTEGER",
+    "cd_dep_count": "INTEGER",
+    "cd_dep_employed_count": "INTEGER",
+    "cd_dep_college_count": "INTEGER",
+    "d_dom": "INTEGER",
+    "d_moy": "INTEGER",
+    "d_qoy": "INTEGER",
+    "d_year": "INTEGER",
+    "d_dow": "INTEGER",
+    "d_month_seq": "INTEGER",
+    "d_week_seq": "INTEGER",
+    "d_quarter_seq": "INTEGER",
+    "d_fy_year": "INTEGER",
+    "d_fy_quarter_seq": "INTEGER",
+    "d_fy_week_seq": "INTEGER",
+    "t_hour": "INTEGER",
+    "t_minute": "INTEGER",
+    "t_second": "INTEGER",
+    
+    # Price/Cost columns (DECIMAL for financial data)
+    "wholesale_cost": "DECIMAL(10,2)",
+    "list_price": "DECIMAL(10,2)",
+    "sales_price": "DECIMAL(10,2)",
+    "ext_discount_amt": "DECIMAL(10,2)",
+    "ext_sales_price": "DECIMAL(10,2)",
+    "ext_wholesale_cost": "DECIMAL(10,2)",
+    "ext_list_price": "DECIMAL(10,2)",
+    "ext_tax": "DECIMAL(10,2)",
+    "coupon_amt": "DECIMAL(10,2)",
+    "ext_ship_cost": "DECIMAL(10,2)",
+    "net_paid": "DECIMAL(10,2)",
+    "net_paid_inc_tax": "DECIMAL(10,2)",
+    "net_paid_inc_ship": "DECIMAL(10,2)",
+    "net_paid_inc_ship_tax": "DECIMAL(10,2)",
+    "net_profit": "DECIMAL(10,2)",
+    "return_amount": "DECIMAL(10,2)",
+    "return_tax": "DECIMAL(10,2)",
+    "return_amt_inc_tax": "DECIMAL(10,2)",
+    "fee": "DECIMAL(10,2)",
+    "return_ship_cost": "DECIMAL(10,2)",
+    "refunded_cash": "DECIMAL(10,2)",
+    "reversed_charge": "DECIMAL(10,2)",
+    "store_credit": "DECIMAL(10,2)",
+    "net_loss": "DECIMAL(10,2)",
+    "account_credit": "DECIMAL(10,2)",
+    "cost": "DECIMAL(10,2)",
+    "purchase_estimate": "INTEGER",
+    "ib_lower_bound": "INTEGER",
+    "ib_upper_bound": "INTEGER",
+    "current_price": "DECIMAL(10,2)",
+    "tax_percentage": "DECIMAL(10,2)",
+    "gmt_offset": "DECIMAL(5,2)",
+    "sq_ft": "INTEGER",
+    "floor_space": "INTEGER",
+    "char_count": "INTEGER",
+    "link_count": "INTEGER",
+    "image_count": "INTEGER",
+    "max_ad_count": "INTEGER",
+    
+    # Date columns (DATE type)
+    "date": "DATE",
+    "rec_start_date": "DATE",
+    "rec_end_date": "DATE",
+    "closed_date_sk": "INTEGER",
+    "open_date_sk": "INTEGER",
+    "start_date_sk": "INTEGER",
+    "end_date_sk": "INTEGER",
+    "first_shipto_date_sk": "INTEGER",
+    "first_sales_date_sk": "INTEGER",
+    "birth_day": "INTEGER",
+    "birth_month": "INTEGER",
+    "birth_year": "INTEGER",
+    "creation_date_sk": "INTEGER",
+    "access_date_sk": "INTEGER",
+    "returned_date_sk": "INTEGER",
+    "returned_time_sk": "INTEGER",
+    "ship_date_sk": "INTEGER",
+    "sold_date_sk": "INTEGER",
+    "sold_time_sk": "INTEGER",
+    "ship_mode_sk": "INTEGER",
+    "warehouse_sk": "INTEGER",
+    
+    # Surrogate keys (INTEGER)
+    "_sk": "INTEGER",
+    
+    # Default for anything else: VARCHAR
+}
+
 # TPC-DS table definitions with columns
 TPCDS_TABLES = {
     "call_center": ["cc_call_center_sk", "cc_call_center_id", "cc_rec_start_date", "cc_rec_end_date", "cc_closed_date_sk", "cc_open_date_sk", "cc_name", "cc_class", "cc_employees", "cc_sq_ft", "cc_hours", "cc_manager", "cc_mkt_id", "cc_mkt_class", "cc_mkt_desc", "cc_market_manager", "cc_division", "cc_division_name", "cc_company", "cc_company_name", "cc_street_number", "cc_street_name", "cc_street_type", "cc_suite_number", "cc_city", "cc_county", "cc_state", "cc_zip", "cc_country", "cc_gmt_offset", "cc_tax_percentage"],
@@ -41,6 +145,57 @@ TPCDS_TABLES = {
 }
 
 
+def get_column_type(column_name: str) -> str:
+    """Determine the proper DuckDB type for a column based on name"""
+    col_lower = column_name.lower()
+    
+    # NOTE: Load all columns as VARCHAR initially
+    # We'll cast date columns in a second pass after loading
+    # This avoids DuckDB's CSV date parsing issues
+    return "VARCHAR"
+
+
+def get_final_column_type(column_name: str) -> str:
+    """Get the final type for a column (for casting after load)"""
+    col_lower = column_name.lower()
+    
+    # Check exact matches first
+    if col_lower in TPCDS_COLUMN_TYPES:
+        return TPCDS_COLUMN_TYPES[col_lower]
+    
+    # Check partial matches
+    for pattern, dtype in TPCDS_COLUMN_TYPES.items():
+        if pattern in col_lower:
+            return dtype
+    
+    # Default to VARCHAR
+    return "VARCHAR"
+
+
+def cast_table_columns(conn: duckdb.DuckDBPyConnection, table_name: str) -> None:
+    """Cast columns to their proper types after loading as VARCHAR"""
+    columns = TPCDS_TABLES[table_name]
+    
+    for col in columns:
+        final_type = get_final_column_type(col)
+        
+        # Only cast if type is not VARCHAR (otherwise already correct)
+        if final_type != "VARCHAR":
+            try:
+                if final_type == "DATE":
+                    # Cast string to DATE
+                    conn.execute(f"ALTER TABLE {table_name} ALTER COLUMN {col} SET DATA TYPE DATE")
+                elif final_type.startswith("DECIMAL"):
+                    # Cast string to DECIMAL
+                    conn.execute(f"ALTER TABLE {table_name} ALTER COLUMN {col} SET DATA TYPE {final_type}")
+                elif final_type == "INTEGER":
+                    # Cast string to INTEGER
+                    conn.execute(f"ALTER TABLE {table_name} ALTER COLUMN {col} SET DATA TYPE INTEGER")
+            except Exception as e:
+                # Skip if casting fails for this column
+                pass
+
+
 def load_table(conn: duckdb.DuckDBPyConnection, table_name: str, data_dir: Path) -> Dict:
     """Load a single table from TPC-DS data files"""
     data_file = data_dir / f"{table_name}.dat"
@@ -52,9 +207,9 @@ def load_table(conn: duckdb.DuckDBPyConnection, table_name: str, data_dir: Path)
     start_time = time.time()
     
     try:
-        # Create column list
+        # Create column list with proper types
         columns = TPCDS_TABLES[table_name]
-        column_defs = ", ".join([f"'{col}': 'VARCHAR'" for col in columns])
+        column_defs = ", ".join([f"'{col}': '{get_column_type(col)}'" for col in columns])
         
         # Read CSV with DuckDB (very efficient)
         # Note: TPC-DS files use | as delimiter and have trailing delimiter
@@ -239,6 +394,8 @@ def main():
     
     for table_name in sorted(TPCDS_TABLES.keys()):
         results[table_name] = load_table(conn, table_name, data_dir)
+        # Cast columns to proper types after loading as VARCHAR
+        cast_table_columns(conn, table_name)
     
     # Create indexes
     create_indexes(conn)

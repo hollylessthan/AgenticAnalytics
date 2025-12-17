@@ -66,6 +66,11 @@ Your task: Synthesize this into a natural, helpful response for the user."""),
         Returns:
             Updated state with final_response
         """
+        # Use retry wrapper for execution
+        return self.execute_with_retry(state, self._execute_impl)
+    
+    def _execute_impl(self, state: AgentState) -> AgentState:
+        """Implementation of communication execution (wrapped in retry logic)."""
         try:
             # Build data summary from available information
             data_summary = self._build_data_summary(state)
@@ -90,14 +95,11 @@ Your task: Synthesize this into a natural, helpful response for the user."""),
             state.final_response = response.content
             state.agent_chain.append("communication_agent")
             
-            return state
-            
         except Exception as e:
-            print(f"Communication agent error: {e}")
-            # Provide basic fallback response
-            state.final_response = self._create_fallback_response(state)
-            state.agent_chain.append("communication_agent")
-            return state
+            # Re-raise so retry logic can handle it
+            raise
+        
+        return state
     
     def _build_data_summary(self, state: AgentState) -> str:
         """

@@ -40,6 +40,11 @@ class VisualizationAgent(BaseAgent):
         Returns:
             Updated state with visualization path
         """
+        # Use retry wrapper for execution
+        return self.execute_with_retry(state, self._execute_impl)
+    
+    def _execute_impl(self, state: AgentState) -> AgentState:
+        """Implementation of visualization execution (wrapped in retry logic)."""
         try:
             # Add to agent chain
             state.agent_chain.append("visualization_agent")
@@ -48,8 +53,7 @@ class VisualizationAgent(BaseAgent):
             if state.query_results is not None:
                 df = self._prepare_dataframe(state.query_results)
             else:
-                state.errors.append("No data available for visualization")
-                return state
+                raise ValueError("No data available for visualization")
             
             # Check if updating existing visualization
             if state.update_visualization and state.current_visualization_code:
@@ -77,9 +81,8 @@ class VisualizationAgent(BaseAgent):
             print(f"[Visualization Agent] {action} visualization: {viz_path}")
             
         except Exception as e:
-            error_msg = f"Visualization Agent Error: {str(e)}"
-            state.errors.append(error_msg)
-            print(f"[Visualization Agent] {error_msg}")
+            # Re-raise so retry logic can handle it
+            raise
         
         return state
     

@@ -928,6 +928,19 @@ def generate_join_best_practices(output_dir: Path):
     print(f"      ✓ Generated {output_file.name}")
 
 
+def copy_data_type_casting(output_dir: Path):
+    """Copy pre-written data type casting guide to RAG documents"""
+    # Read the pre-written document
+    source = Path(__file__).parent / "rag_documents" / "data_type_casting.md"
+    dest = output_dir / "data_type_casting.md"
+    
+    if source.exists():
+        dest.write_text(source.read_text())
+        print(f"      ✓ Copied {dest.name}")
+    else:
+        print(f"      ⚠ Warning: {source.name} not found, skipping copy")
+
+
 def generate_business_glossary(output_dir: Path):
     """Generate business terminology glossary"""
     doc = "# Business Glossary\n\n"
@@ -1012,6 +1025,7 @@ def main():
     generate_query_patterns(output_dir)
     generate_data_format_conversions(conn, output_dir)
     generate_join_best_practices(output_dir)
+    copy_data_type_casting(output_dir)
     generate_business_glossary(output_dir)
     
     # Close connection

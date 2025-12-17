@@ -108,6 +108,10 @@ class Config(BaseModel):
         "gpt-4.1"  # Default model
     )
     
+    # Agent Retry Settings
+    agent_retry_count: int = int(os.getenv("AGENT_RETRY_COUNT", "2"))  # Number of retries per agent
+    agent_retry_delay_ms: int = int(os.getenv("AGENT_RETRY_DELAY_MS", "500"))  # Delay between retries in ms
+    
     # Cache Settings (NEW)
     enable_data_cache: bool = os.getenv("ENABLE_DATA_CACHE", "true").lower() == "true"
     max_cache_rows: int = int(os.getenv("MAX_CACHE_ROWS", "10000"))  # Max rows to cache

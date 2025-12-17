@@ -34,16 +34,23 @@ class AnalysisAgent(BaseAgent):
         Returns:
             Updated state with analysis results
         """
+        # Use retry wrapper for execution
+        return self.execute_with_retry(state, self._execute_impl)
+    
+    def _execute_impl(self, state: AgentState) -> AgentState:
+        """Implementation of analysis execution (wrapped in retry logic)."""
         try:
             # Add to agent chain
             state.agent_chain.append("analysis_agent")
             
             # Convert query results to DataFrame if needed
-            if state.query_results is not None:
-                df = self._prepare_dataframe(state.query_results)
-            else:
-                state.errors.append("No data available for analysis")
-                return state
+            if state.query_results is None:
+                raise ValueError("No data available for analysis")
+            
+            df = self._prepare_dataframe(state.query_results)
+            
+            if df.empty:
+                raise ValueError("Query returned no rows for analysis")
             
             # Generate analysis code
             analysis_code = self._generate_analysis_code(state.query, df)
@@ -58,9 +65,8 @@ class AnalysisAgent(BaseAgent):
             print(f"[Analysis Agent] Completed analysis with {len(analysis_results)} results")
             
         except Exception as e:
-            error_msg = f"Analysis Agent Error: {str(e)}"
-            state.errors.append(error_msg)
-            print(f"[Analysis Agent] {error_msg}")
+            # Re-raise so retry logic can handle it
+            raise
         
         return state
     

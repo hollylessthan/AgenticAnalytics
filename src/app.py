@@ -205,6 +205,22 @@ def display_chat_message(role: str, content: str, result=None, message=None):
         # Show SQL query if available
         if result.sql_query:
             with st.expander("🔍 SQL Query", expanded=False):
+                # Display with light background for better readability
+                st.markdown("""
+                <style>
+                .sql-code {
+                    background-color: #f8f8f8;
+                    color: #2d3436;
+                    padding: 1rem;
+                    border-radius: 0.5rem;
+                    border: 1px solid #e0e0e0;
+                    overflow-x: auto;
+                    font-family: 'Courier New', monospace;
+                    font-size: 0.9rem;
+                    line-height: 1.5;
+                }
+                </style>
+                """, unsafe_allow_html=True)
                 st.code(result.sql_query, language="sql")
 
 
@@ -517,11 +533,21 @@ def main():
             # Add assistant response with result metadata
             # Check both final_answer and final_response for backward compatibility
             response = result.final_answer or result.final_response or "I couldn't process your request."
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": response,
-                "result": result  # Store full result for inline display
-            })
+            
+            # Check for agent-specific errors
+            if result.errors and len(result.errors) > 0:
+                # Show agent errors as warnings
+                for error in result.errors:
+                    st.warning(error)
+                # Still show the response if available
+                if response != "I couldn't process your request.":
+                    st.info(f"Response: {response}")
+            else:
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": response,
+                    "result": result  # Store full result for inline display
+                })
             
             # Store results for display
             st.session_state.last_result = result
@@ -530,10 +556,21 @@ def main():
         except Exception as e:
             status_placeholder.empty()
             import traceback
-            error_msg = f"Error: {str(e)}"
+            
+            # Provide more context based on error type
+            error_str = str(e)
+            if "visualization_agent" in error_str.lower():
+                error_msg = "❌ Visualization Agent Error\n\nThe visualization agent encountered an issue. This usually means:\n- No query results were available\n- The query returned empty results\n- The data types were incompatible with the chart type"
+            elif "sql" in error_str.lower():
+                error_msg = "❌ SQL Query Error\n\nThe SQL agent couldn't generate a valid query. Try:\n- Being more specific about what data you need\n- Checking table/column names\n- Simplifying your request"
+            elif "analysis" in error_str.lower():
+                error_msg = "❌ Analysis Agent Error\n\nThe analysis agent encountered an issue. Try:\n- Asking a simpler question\n- Providing more context\n- Checking data types"
+            else:
+                error_msg = f"❌ {error_str}"
+            
             st.error(error_msg)
-            with st.expander("Error Details"):
-                st.code(traceback.format_exc())
+            with st.expander("📋 Error Details"):
+                st.code(traceback.format_exc(), language="python")
             st.session_state.messages.append({"role": "assistant", "content": error_msg})
         
         st.rerun()
