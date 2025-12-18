@@ -13,8 +13,8 @@ langgraph>=0.0.20
 langchain-openai>=0.0.5
 # langchain-anthropic>=0.1.0  # For Claude
 # langchain-google-genai>=0.0.5  # For Gemini
-# langchain-aws>=0.0.1  # For Bedrock
-# boto3>=1.28.0  # For AWS services (Bedrock, Redshift IAM)
+langchain-aws>=0.0.1  # For Bedrock
+boto3>=1.28.0  # For AWS services (Bedrock, Redshift IAM, Kendra, DynamoDB)
 
 # Vector stores - Core
 faiss-cpu>=1.7.4
@@ -27,6 +27,7 @@ faiss-cpu>=1.7.4
 # chromadb>=0.4.0  # For Chroma
 # langchain-chroma>=0.1.0  # For Chroma
 # azure-search-documents>=11.4.0  # For Azure Search
+psycopg2-binary>=2.9.9  # For Aurora pgvector
 
 # Embedding models - Optional
 # langchain-huggingface>=0.0.1  # For HuggingFace embeddings

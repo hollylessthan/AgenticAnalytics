@@ -4,6 +4,7 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import traceback
 from typing import Optional
 from datetime import datetime
 from langchain_core.prompts import ChatPromptTemplate
@@ -49,11 +50,20 @@ class VisualizationAgent(BaseAgent):
             # Add to agent chain
             state.agent_chain.append("visualization_agent")
             
-            # Prepare data
+            # Check for data - try query_results first, then cached_dataframe
+            data_source = None
             if state.query_results is not None:
-                df = self._prepare_dataframe(state.query_results)
+                data_source = state.query_results
+            elif state.cached_dataframe is not None:
+                data_source = state.cached_dataframe
+                print("[Visualization Agent] Using cached_dataframe as data source")
             else:
-                raise ValueError("No data available for visualization")
+                raise ValueError("No query results available. Did the SQL query execute successfully? Check the SQL agent output.")
+            
+            # Prepare data
+            df = self._prepare_dataframe(data_source)
+            if df.empty:
+                raise ValueError("Query returned no data. Cannot create visualization from empty dataset.")
             
             # Check if updating existing visualization
             if state.update_visualization and state.current_visualization_code:
@@ -64,21 +74,46 @@ class VisualizationAgent(BaseAgent):
                     df
                 )
             else:
-                # Generate new visualization code
-                viz_code = self._generate_visualization_code(state.query, df)
+                # Generate and execute visualization code with error-aware retries
+                max_viz_retries = 3
+                viz_code = None
+                viz_result = None
+                
+                for attempt in range(max_viz_retries):
+                    if attempt == 0:
+                        # First attempt: generate fresh code
+                        viz_code = self._generate_visualization_code(state.query, df)
+                    else:
+                        # Subsequent attempts: regenerate based on error
+                        error_info = viz_result.get('error', '')
+                        error_trace = viz_result.get('traceback', '')
+                        print(f"[Visualization Agent] Code failed: {error_info}")
+                        print(f"[Visualization Agent] Regenerating code (attempt {attempt + 1}/{max_viz_retries})")
+                        viz_code = self._regenerate_visualization_code(state.query, df, error_info, error_trace)
+                    
+                    # Execute the visualization code
+                    viz_result = self._execute_visualization(viz_code, df)
+                    
+                    # Check if successful
+                    if 'error' not in viz_result:
+                        # Success!
+                        print(f"[Visualization Agent] Successfully generated and executed visualization")
+                        break
+                    elif attempt == max_viz_retries - 1:
+                        # Last attempt failed
+                        raise Exception(f"Visualization code generation failed after {max_viz_retries} attempts: {viz_result['error']}")
+                
+                viz_path = viz_result.get('path') if 'error' not in viz_result else None
+                state.visualization_path = viz_path
+                state.visualization_paths.append(viz_path)
             
             state.visualization_code = viz_code
-            
-            # Execute visualization
-            viz_path = self._execute_visualization(viz_code, df)
-            state.visualization_path = viz_path
-            state.visualization_paths.append(viz_path)
             
             # Cache the visualization code for potential updates
             state.current_visualization_code = viz_code
             
             action = "Updated" if state.update_visualization else "Created"
-            print(f"[Visualization Agent] {action} visualization: {viz_path}")
+            print(f"[Visualization Agent] {action} visualization: {state.visualization_path}")
             
         except Exception as e:
             # Re-raise so retry logic can handle it
@@ -180,6 +215,78 @@ plt.tight_layout()"""),
         
         return code.strip()
     
+    def _regenerate_visualization_code(self, user_query: str, df: pd.DataFrame, error_msg: str, error_trace: str) -> str:
+        """Regenerate visualization code based on previous error.
+        
+        Args:
+            user_query: User's visualization query
+            df: DataFrame to visualize
+            error_msg: Error message from failed execution
+            error_trace: Full traceback from failed execution
+            
+        Returns:
+            Corrected Python code string
+        """
+        df_info = f"Shape: {df.shape}\nColumns: {list(df.columns)}\nDtypes:\n{df.dtypes.to_dict()}"
+        sample_data = df.head().to_dict()
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are a data visualization specialist. Fix the Python code that previously failed.
+
+DataFrame Information:
+{df_info}
+
+Sample Data (first few rows):
+{sample_data}
+
+PREVIOUS ERROR (fix this):
+{error_trace}
+
+Visualization Code Requirements:
+1. Use matplotlib (plt) and seaborn (sns) - both available
+2. Create figure: fig, ax = plt.subplots(figsize=(10, 6))
+3. Choose appropriate chart type based on data
+4. Add clear labels and title
+5. DO NOT include import statements
+6. Assume df, plt, sns, pd are available
+7. FIX the previous error - analyze what went wrong and correct it
+8. DO NOT include plt.show() or plt.savefig() - these are handled separately
+
+Common Errors and Fixes:
+- KeyError: Column doesn't exist → Check df.columns, use correct column names
+- TypeError: Unsupported type → Check data types, convert if needed
+- ValueError: Invalid parameter → Check parameter ranges
+- AttributeError: No such method → Use correct method names
+- IndexError: Out of bounds → Check array/list sizes
+
+Output Format (complete, executable code):
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.plot(df['x'], df['y'])
+ax.set_xlabel('X Label')
+ax.set_ylabel('Y Label')
+ax.set_title('Chart Title')
+plt.tight_layout()"""),
+            ("user", "Fix the visualization code for: {question}")
+        ])
+        
+        response = self.llm.invoke(prompt.format_messages(
+            df_info=df_info,
+            sample_data=str(sample_data)[:500],
+            error_trace=error_trace[:1000],  # Limit traceback size
+            question=user_query
+        ))
+        
+        # Clean up code
+        code = response.content.strip()
+        if code.startswith("```python"):
+            code = code[9:]
+        if code.startswith("```"):
+            code = code[3:]
+        if code.endswith("```"):
+            code = code[:-3]
+        
+        return code.strip()
+    
     def _update_visualization_code(self, user_request: str, current_code: str, df: pd.DataFrame) -> str:
         """Update existing visualization code based on user request.
         
@@ -237,7 +344,7 @@ Common updates:
         
         return code.strip()
     
-    def _execute_visualization(self, code: str, df: pd.DataFrame) -> str:
+    def _execute_visualization(self, code: str, df: pd.DataFrame):
         """Execute visualization code and save figure.
         
         Args:
@@ -245,7 +352,7 @@ Common updates:
             df: DataFrame to visualize
             
         Returns:
-            Path to saved visualization
+            Dict with path (success) or error info (failure)
         """
         # Create safe execution environment
         local_vars = {
@@ -267,8 +374,12 @@ Common updates:
             plt.savefig(filepath, dpi=300, bbox_inches='tight')
             plt.close()
             
-            return filepath
+            return {'path': filepath}
             
         except Exception as e:
             plt.close()
-            raise Exception(f"Visualization execution failed: {str(e)}")
+            return {
+                'error': str(e),
+                'traceback': traceback.format_exc(),
+                'code': code
+            }

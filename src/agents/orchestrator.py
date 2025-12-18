@@ -75,6 +75,8 @@ class AgentOrchestrator:
             self._route_from_classifier,
             {
                 "sql_agent": "sql_agent",
+                "visualization_agent": "visualization_agent",
+                "analysis_agent": "analysis_agent",
                 "communication_agent": "communication_agent"
             }
         )

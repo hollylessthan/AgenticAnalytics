@@ -55,7 +55,8 @@ class Config(BaseModel):
     
     # Vector Store Settings
     vector_store_type: Literal[
-        "faiss", "weaviate", "opensearch", "kendra", "azure_search", "vertex_ai", "pinecone", "chroma"
+        "faiss", "weaviate", "opensearch", "kendra", "aurora_pgvector", "dynamodb", 
+        "azure_search", "vertex_ai", "pinecone", "chroma"
     ] = os.getenv("VECTOR_STORE_TYPE", "faiss")
     
     # Embedding Model Settings
@@ -73,17 +74,34 @@ class Config(BaseModel):
     opensearch_username: Optional[str] = os.getenv("OPENSEARCH_USERNAME")
     opensearch_password: Optional[str] = os.getenv("OPENSEARCH_PASSWORD")
     
+    # AWS Configuration
+    aws_region: Optional[str] = os.getenv("AWS_REGION", "us-east-1")
+    
     # AWS Kendra
     kendra_index_id: Optional[str] = os.getenv("KENDRA_INDEX_ID")
+    
+    # AWS Aurora PostgreSQL with pgvector
+    aurora_host: Optional[str] = os.getenv("AURORA_HOST")
+    aurora_port: Optional[int] = int(os.getenv("AURORA_PORT", "5432")) if os.getenv("AURORA_PORT") else 5432
+    aurora_user: Optional[str] = os.getenv("AURORA_USER")
+    aurora_password: Optional[str] = os.getenv("AURORA_PASSWORD")
+    aurora_db_name: Optional[str] = os.getenv("AURORA_DB_NAME", "analytics")
+    
+    # AWS DynamoDB
+    dynamodb_table_name: Optional[str] = os.getenv("DYNAMODB_TABLE_NAME")
     
     # Azure Cognitive Search
     azure_search_endpoint: Optional[str] = os.getenv("AZURE_SEARCH_ENDPOINT")
     azure_search_key: Optional[str] = os.getenv("AZURE_SEARCH_KEY")
     azure_search_index_name: Optional[str] = os.getenv("AZURE_SEARCH_INDEX_NAME")
     
+    # Google Cloud Platform Configuration
+    gcp_project_id: Optional[str] = os.getenv("GCP_PROJECT_ID")
+    gcp_region: Optional[str] = os.getenv("GCP_REGION", "us-central1")
+    
     # Google Vertex AI Vector Search
     vertex_ai_index_id: Optional[str] = os.getenv("VERTEX_AI_INDEX_ID")
-    vertex_ai_index_endpoint: Optional[str] = os.getenv("VERTEX_AI_INDEX_ENDPOINT")
+    vertex_ai_endpoint: Optional[str] = os.getenv("VERTEX_AI_ENDPOINT")
     
     # Pinecone
     pinecone_api_key: Optional[str] = os.getenv("PINECONE_API_KEY")

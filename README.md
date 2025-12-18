@@ -6,10 +6,6 @@
 
 **Data Copilot** is the reference user interface built on top of Agentic Analytics. It provides an interactive experience for querying, validating, and exploring analytical data while the core framework handles planning, execution, and verification behind the scenes.
 
-**In short:** Agentic Analytics is the engine, and Data Copilot is the interface.
-
-## Overview
-
 ```
 ┌─────────────────────────────────────┐
 │       Data Copilot (UI Layer)       │
@@ -28,23 +24,19 @@
 └──────────────────────────────────────────────┘
 ```
 
-## 📊 Data Copilot Features
+## Key Features
 
-Data Copilot is the reference UI that showcases the capabilities of Agentic Analytics:
+- **Multi-Agent Architecture**: Specialized agents for SQL generation, analysis, visualization, and communication
+- **Hybrid Routing System**: 3-tier intelligent query classification (Regex -> Keywords -> LLM) for optimal performance
+- **RAG Integration**: Automatic schema indexing and semantic search for context-aware responses
+- **Security First**: SQL injection prevention, safe DataFrame handling, query row limits
+- **Smart Caching**: Result caching with configurable limits and concurrent read access
+- **Real-time Visualization**: Inline charts and tables with automatic formatting
+- **Stateful Conversations**: 10-turn conversation history with snapshot rollback capability
+- **Streaming Transparency**: Real-time agent reasoning visibility with callback-based streaming
+- **Flexible & Extensible**: Works with any database, LLM provider, and vector store — customize for your data
 
-## ✨ Key Features
-
-- **🤖 Multi-Agent Architecture**: Specialized agents for SQL generation, analysis, visualization, and communication
-- **🧠 Hybrid Routing System**: 3-tier intelligent query classification (Regex → Keywords → LLM) for optimal performance
-- **📚 RAG Integration**: Automatic schema indexing and semantic search for context-aware responses
-- **🔒 Security First**: SQL injection prevention, safe DataFrame handling, query row limits
-- **💾 Smart Caching**: Result caching with configurable limits and concurrent read access
-- **📊 Real-time Visualization**: Inline charts and tables with automatic formatting
-- **🔄 Stateful Conversations**: 10-turn conversation history with snapshot rollback capability
-- **🌊 Streaming Transparency**: Real-time agent reasoning visibility with callback-based streaming
-- **🎯 Flexible & Extensible**: Works with any database, LLM provider, and vector store — customize for your data
-
-## 🎯 Flexible Framework for Any Database
+## Flexible Framework for Any Database
 
 Agentic Analytics is built to work with **your data**, regardless of database type, LLM provider, or scale. Whether you have a PostgreSQL data warehouse, DuckDB analytics database, or Snowflake cluster, Agentic Analytics adapts to your setup.
 
@@ -66,8 +58,10 @@ AWS Bedrock       Azure OpenAI        Local Models (Ollama)
 ### Supported Vector Stores
 
 ```
-FAISS (in-memory)  Weaviate (persistent)  Pinecone
-Chroma             Milvus
+FAISS (in-memory)         Weaviate (persistent)  Pinecone
+Chroma                    OpenSearch             Kendra
+Aurora pgvector           DynamoDB               Vertex AI Vector Search
+Azure Cognitive Search
 ```
 
 ### Quick Customization
@@ -94,7 +88,7 @@ streamlit run src/app.py
 
 That's it! Agentic Analytics automatically discovers your schema and indexes it for intelligent query generation.
 
-## 🎬 Quick Demo
+## Quick Demo
 
 Watch a demo of Data Copilot in action:
 

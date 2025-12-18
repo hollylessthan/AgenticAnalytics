@@ -1,6 +1,7 @@
 """Analysis Agent for performing Python data analysis."""
 
 import pandas as pd
+import traceback
 from typing import Dict, Any, Optional
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -43,24 +44,51 @@ class AnalysisAgent(BaseAgent):
             # Add to agent chain
             state.agent_chain.append("analysis_agent")
             
-            # Convert query results to DataFrame if needed
-            if state.query_results is None:
+            # Get data source - check both query_results and cached_dataframe
+            data_source = None
+            if state.query_results is not None:
+                data_source = state.query_results
+            elif state.cached_dataframe is not None:
+                data_source = state.cached_dataframe
+                print("[AnalysisAgent] Using cached_dataframe as data source")
+            else:
                 raise ValueError("No data available for analysis")
             
-            df = self._prepare_dataframe(state.query_results)
+            df = self._prepare_dataframe(data_source)
             
             if df.empty:
                 raise ValueError("Query returned no rows for analysis")
             
-            # Generate analysis code
-            analysis_code = self._generate_analysis_code(state.query, df)
-            state.analysis_code = analysis_code
+            # Try to generate and execute analysis code with error-aware retries
+            analysis_code = None
+            analysis_results = None
+            max_code_retries = 3
             
-            # Execute analysis
-            analysis_results = self._execute_analysis(analysis_code, df)
-            
-            # Format results as string for communication agent
-            state.analysis_results = self._format_results(analysis_results)
+            for attempt in range(max_code_retries):
+                if attempt == 0:
+                    # First attempt: generate fresh code
+                    analysis_code = self._generate_analysis_code(state.query, df)
+                else:
+                    # Subsequent attempts: regenerate code based on previous error
+                    error_info = analysis_results.get('error', '')
+                    error_trace = analysis_results.get('traceback', '')
+                    print(f"[Analysis Agent] Code failed with error: {error_info}")
+                    print(f"[Analysis Agent] Regenerating code (attempt {attempt + 1}/{max_code_retries})")
+                    analysis_code = self._regenerate_analysis_code(state.query, df, error_info, error_trace)
+                
+                # Execute the analysis code
+                analysis_results = self._execute_analysis(analysis_code, df)
+                state.analysis_code = analysis_code
+                
+                # Check if successful
+                if 'error' not in analysis_results:
+                    # Success!
+                    state.analysis_results = self._format_results(analysis_results)
+                    print(f"[Analysis Agent] Successfully generated and executed analysis code")
+                    break
+                elif attempt == max_code_retries - 1:
+                    # Last attempt failed - raise the error
+                    raise Exception(f"Analysis code generation failed after {max_code_retries} attempts: {analysis_results['error']}")
             
             print(f"[Analysis Agent] Completed analysis with {len(analysis_results)} results")
             
@@ -163,7 +191,7 @@ results = {{
             df: DataFrame to analyze
             
         Returns:
-            Analysis results dictionary
+            Analysis results dictionary (or error dict if execution failed)
         """
         import numpy as np
         
@@ -179,7 +207,82 @@ results = {{
             exec(code, {"__builtins__": __builtins__}, local_vars)
             return local_vars.get('results', {})
         except Exception as e:
-            return {'error': str(e), 'code': code}
+            # Capture both error message and full traceback for regeneration
+            return {
+                'error': str(e),
+                'traceback': traceback.format_exc(),
+                'code': code
+            }
+    
+    def _regenerate_analysis_code(self, user_query: str, df: pd.DataFrame, error_msg: str, error_trace: str) -> str:
+        """Regenerate analysis code based on previous error.
+        
+        Args:
+            user_query: User's analysis query
+            df: DataFrame to analyze
+            error_msg: Error message from failed execution
+            error_trace: Full traceback from failed execution
+            
+        Returns:
+            Corrected Python code string
+        """
+        df_info = f"Shape: {df.shape}\nColumns: {list(df.columns)}\nDtypes:\n{df.dtypes.to_dict()}"
+        sample_data = df.head().to_dict()
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are a statistical analysis specialist. Fix the Python code that previously failed.
+
+DataFrame Information:
+{df_info}
+
+Sample Data (first few rows):
+{sample_data}
+
+PREVIOUS ERROR (fix this):
+{error_trace}
+
+Analysis Code Requirements:
+1. Use pandas (pd) and numpy (np) - both are available
+2. Store ALL results in a dictionary named 'results'
+3. Include descriptive labels for each result
+4. DO NOT include import statements
+5. Assume 'df' variable contains the data
+6. Handle missing values gracefully
+7. Convert numpy types to Python types for serialization
+8. FIX the previous error - analyze what went wrong and correct it
+
+Common Errors and Fixes:
+- KeyError: Column doesn't exist → Check df.columns, use correct column names
+- TypeError: Unsupported operand types → Ensure type compatibility, convert if needed
+- ValueError: Invalid parameter value → Check parameter ranges and types
+- AttributeError: Object has no attribute → Use correct method/attribute names
+- ZeroDivisionError: Division by zero → Add checks before division
+
+Output Format:
+results = {{
+    'metric_name': value,
+    'another_metric': another_value
+}}"""),
+            ("user", "Fix the analysis code to analyze: {question}")
+        ])
+        
+        response = self.llm.invoke(prompt.format_messages(
+            df_info=df_info,
+            sample_data=str(sample_data)[:500],
+            error_trace=error_trace[:1000],  # Limit traceback size
+            question=user_query
+        ))
+        
+        # Clean up code
+        code = response.content.strip()
+        if code.startswith("```python"):
+            code = code[9:]
+        if code.startswith("```"):
+            code = code[3:]
+        if code.endswith("```"):
+            code = code[:-3]
+        
+        return code.strip()
     
     def _format_results(self, results: Dict[str, Any]) -> str:
         """Format analysis results as readable string.

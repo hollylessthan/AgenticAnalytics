@@ -1,22 +1,28 @@
-# 🏗️ Data Copilot Architecture
+# Agentic Analytics Architecture
 
 ## Overview
 
-Data Copilot uses a **multi-agent orchestration pattern** built with LangGraph and LangChain. The system decomposes complex data analysis tasks into specialized agent workflows that collaborate to provide comprehensive insights.
+**Agentic Analytics** is a multi-agent orchestration framework built with LangGraph and LangChain. The core framework decomposes complex data analysis tasks into specialized agent workflows that collaborate to provide comprehensive insights.
+
+**Data Copilot** is a reference implementation that provides a Streamlit UI on top of Agentic Analytics, demonstrating how the framework can be deployed as an interactive chat interface.
+
+This document describes the **Agentic Analytics core architecture**. The UI layer (Data Copilot) is thin and primarily handles user interaction while delegating all analytical work to the core framework.
 
 ## System Design
 
-### High-Level Architecture
+### Architectural Layers
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│               Streamlit UI Interface                │
-│        (Chat, visualizations, session mgmt)         │
+│           Data Copilot (UI Layer)                   │
+│       Streamlit Chat Interface                      │
+│   (User input, visualization display, chat hist)   │
 └──────────────────┬──────────────────────────────────┘
-                   │
+                   │ (Delegates analytical work)
                    ▼
 ┌─────────────────────────────────────────────────────┐
-│           Agent Orchestrator (LangGraph)            │
+│    Agentic Analytics (Core Framework)               │
+│        Agent Orchestrator (LangGraph)               │
 │                                                     │
 │  ┌─────────────────────────────────────────────┐   │
 │  │  1. Query Classification (Hybrid Router)    │   │
@@ -77,7 +83,7 @@ Data Copilot uses a **multi-agent orchestration pattern** built with LangGraph a
 
 ## Agent Orchestrator
 
-The **Agent Orchestrator** (`src/agents/orchestrator.py`) is the heart of Data Copilot. It coordinates specialized agents using a state machine pattern with LangGraph.
+The **Agent Orchestrator** (`src/agents/orchestrator.py`) is the core of Agentic Analytics. It coordinates specialized agents using a state machine pattern with LangGraph.
 
 ### Orchestrator Flow
 
@@ -402,16 +408,16 @@ Session Data:
 ### Cache Eligibility
 
 Results cached if:
-- ✅ Query results < row limit
-- ✅ Query is deterministic (no RANDOM, NOW, etc)
-- ✅ Database hasn't changed (schema validation)
-- ✅ Not already cached
+- Query results < row limit
+- Query is deterministic (no RANDOM, NOW, etc)
+- Database hasn't changed (schema validation)
+- Not already cached
 
 Results NOT cached if:
-- ❌ Results > row limit
-- ❌ Contains volatile functions
-- ❌ User explicitly disables
-- ❌ Real-time data required
+- Results > row limit
+- Contains volatile functions
+- User explicitly disables
+- Real-time data required
 
 ### Cache Operations
 

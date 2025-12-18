@@ -1,6 +1,8 @@
 """SQL Agent for converting natural language to SQL queries."""
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
+import traceback
+import pandas as pd
 from langchain_core.prompts import ChatPromptTemplate
 
 from src.agents.base import BaseAgent, AgentState
@@ -55,53 +57,84 @@ class SQLAgent(BaseAgent):
             if pinned_tables_info:
                 schema_info += f"\n\n{pinned_tables_info}"
             
-            # Generate SQL query using LLM (with context from previous query if available)
-            sql_query = self._generate_sql_query(state.query, schema_info, state.last_sql_query)
+            # Try to generate and execute SQL with error-aware retries
+            sql_query = None
+            query_result = None
+            max_query_retries = 3
             
-            # Validate SQL for security
-            is_safe, validation_msg = self._validate_sql_safety(sql_query)
-            if not is_safe:
-                error_msg = f"SQL Security Validation Failed: {validation_msg}"
-                state.errors.append(error_msg)
-                print(f"[SQL Agent] ⚠️ {error_msg}")
-                print(f"[SQL Agent] Blocked query: {sql_query[:200]}")
-                raise ValueError(validation_msg)
-            
-            # Apply smart limit if enabled
-            if self.smart_limit:
-                sql_query = self._apply_smart_limit(sql_query)
-            
-            state.sql_query = sql_query
-            
-            # Execute query
-            results = self.db_manager.execute_query(sql_query)
-            state.query_results = results
-            
-            # Smart caching with size limits
-            cached_data, cache_msg = self.cache_manager.cache_data(results, sql_query)
-            
-            if cached_data is not None:
-                state.cached_dataframe = cached_data
-                state.last_sql_query = sql_query
+            for attempt in range(max_query_retries):
+                if attempt == 0:
+                    # First attempt: generate fresh SQL
+                    sql_query = self._generate_sql_query(state.query, schema_info, state.last_sql_query)
+                else:
+                    # Subsequent attempts: regenerate based on previous error
+                    error_info = query_result.get('error', '')
+                    error_trace = query_result.get('traceback', '')
+                    print(f"[SQL Agent] Query failed: {error_info}")
+                    print(f"[SQL Agent] Regenerating query (attempt {attempt + 1}/{max_query_retries})")
+                    sql_query = self._regenerate_sql_query(
+                        state.query,
+                        schema_info,
+                        sql_query,
+                        error_info,
+                        error_trace
+                    )
                 
-                # Store cache metadata
-                cache_info = self.cache_manager.get_cache_info()
-                state.metadata['cache_info'] = cache_info
+                # Validate SQL for security
+                is_safe, validation_msg = self._validate_sql_safety(sql_query)
+                if not is_safe:
+                    error_msg = f"SQL Security Validation Failed: {validation_msg}"
+                    state.errors.append(error_msg)
+                    print(f"[SQL Agent] ⚠️ {error_msg}")
+                    print(f"[SQL Agent] Blocked query: {sql_query[:200]}")
+                    raise ValueError(validation_msg)
                 
-                print(f"[SQL Agent] Generated query: {sql_query[:100]}...")
-                print(f"[SQL Agent] Retrieved {len(results) if hasattr(results, '__len__') else 'N/A'} results")
-                print(f"[SQL Agent] Cache: {cache_msg}")
+                # Apply smart limit if enabled
+                if self.smart_limit:
+                    sql_query = self._apply_smart_limit(sql_query)
                 
-                # Warning if sampled
-                if cache_info.get('is_sampled'):
-                    print(f"[SQL Agent] ⚠️  Large dataset sampled: {cache_info['row_count']}/{cache_info['original_row_count']} rows cached")
-            else:
-                # Caching disabled or data too large
-                state.cached_dataframe = None
-                state.last_sql_query = sql_query
-                print(f"[SQL Agent] Generated query: {sql_query[:100]}...")
-                print(f"[SQL Agent] Retrieved {len(results) if hasattr(results, '__len__') else 'N/A'} results")
-                print(f"[SQL Agent] Cache: {cache_msg}")
+                state.sql_query = sql_query
+                
+                # Try to execute query
+                query_result = self._execute_query(sql_query)
+                
+                # Check if successful
+                if 'error' not in query_result:
+                    # Success!
+                    results = query_result['results']
+                    state.query_results = results
+                    
+                    # Smart caching with size limits
+                    cached_data, cache_msg = self.cache_manager.cache_data(results, sql_query)
+                    
+                    if cached_data is not None:
+                        state.cached_dataframe = cached_data
+                        state.last_sql_query = sql_query
+                        
+                        # Store cache metadata
+                        cache_info = self.cache_manager.get_cache_info()
+                        state.metadata['cache_info'] = cache_info
+                        
+                        print(f"[SQL Agent] Successfully generated and executed query")
+                        print(f"[SQL Agent] Retrieved {len(results) if hasattr(results, '__len__') else 'N/A'} results")
+                        print(f"[SQL Agent] Cache: {cache_msg}")
+                        
+                        # Warning if sampled
+                        if cache_info.get('is_sampled'):
+                            print(f"[SQL Agent] ⚠️  Large dataset sampled: {cache_info['row_count']}/{cache_info['original_row_count']} rows cached")
+                    else:
+                        # Caching disabled or data too large
+                        state.cached_dataframe = None
+                        state.last_sql_query = sql_query
+                        print(f"[SQL Agent] Successfully generated and executed query")
+                        print(f"[SQL Agent] Retrieved {len(results) if hasattr(results, '__len__') else 'N/A'} results")
+                        print(f"[SQL Agent] Cache: {cache_msg}")
+                    
+                    break  # Success, exit retry loop
+                    
+                elif attempt == max_query_retries - 1:
+                    # Last attempt failed - raise the error
+                    raise Exception(f"SQL query generation/execution failed after {max_query_retries} attempts: {query_result['error']}")
             
         except Exception as e:
             # Re-raise so retry logic can handle it
@@ -324,3 +357,92 @@ Output ONLY the SQL query."""
             return f"{sql_clean[:-1]} LIMIT {self.smart_limit_rows};"
         else:
             return f"{sql_clean} LIMIT {self.smart_limit_rows}"
+    
+    def _execute_query(self, sql_query: str) -> Dict[str, Any]:
+        """Execute SQL query safely, capturing errors.
+        
+        Args:
+            sql_query: SQL query to execute
+            
+        Returns:
+            Dict with results (success) or error info (failure)
+        """
+        try:
+            results = self.db_manager.execute_query(sql_query)
+            return {'results': results}
+        except Exception as e:
+            return {
+                'error': str(e),
+                'traceback': traceback.format_exc(),
+                'query': sql_query
+            }
+    
+    def _regenerate_sql_query(self, user_query: str, schema_info: str, failed_query: str, error_msg: str, error_trace: str) -> str:
+        """Regenerate SQL query based on previous error.
+        
+        Args:
+            user_query: Original user's natural language query
+            schema_info: Database schema information
+            failed_query: The SQL query that failed
+            error_msg: Error message from execution
+            error_trace: Full traceback from execution
+            
+        Returns:
+            Corrected SQL query string
+        """
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are an expert SQL query generator. Fix the SQL query that previously failed.
+
+Database Schema:
+{schema}
+
+FAILED QUERY:
+{failed_query}
+
+ERROR (fix this):
+{error_trace}
+
+CRITICAL RULES:
+1. Output ONLY the complete SQL query - nothing else
+2. NO markdown, NO code blocks, NO explanations
+3. Query must be syntactically correct and executable
+4. Fix the error based on available schema
+5. ONLY generate SELECT or WITH queries (READ-ONLY operations)
+
+Common SQL Errors and Fixes:
+- Column doesn't exist → Check schema for correct column names
+- Table doesn't exist → Verify table name in schema
+- Syntax error → Check SQL syntax, commas, keywords
+- Type mismatch → Ensure proper type casting
+- Ambiguous column → Use table aliases (e.g., t1.column, t2.column)
+- Invalid join → Check join conditions and table relationships
+
+Output ONLY the corrected SQL query."""),
+            ("user", "Fix this query to answer: {question}")
+        ])
+        
+        response = self.llm.invoke(prompt.format_messages(
+            schema=schema_info,
+            failed_query=failed_query,
+            error_trace=error_trace[:1000],  # Limit traceback size
+            question=user_query
+        ))
+        
+        # Clean up SQL query
+        sql_query = response.content.strip()
+        
+        # Remove markdown code blocks if present
+        if sql_query.startswith("```sql"):
+            sql_query = sql_query[6:]
+        elif sql_query.startswith("```"):
+            sql_query = sql_query[3:]
+        if sql_query.endswith("```"):
+            sql_query = sql_query[:-3]
+        
+        sql_query = sql_query.strip()
+        
+        # Remove any text after semicolon (comments or explanations)
+        if ';' in sql_query:
+            sql_query = sql_query.split(';')[0].strip() + ';'
+        
+        return sql_query

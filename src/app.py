@@ -202,26 +202,23 @@ def display_chat_message(role: str, content: str, result=None, message=None):
                         key=f"img_{id(result)}"
                     )
         
-        # Show SQL query if available
+        # Show generated code in expandable sections
+        col1, col2, col3 = st.columns(3)
+        
+        # SQL Query
         if result.sql_query:
-            with st.expander("🔍 SQL Query", expanded=False):
-                # Display with light background for better readability
-                st.markdown("""
-                <style>
-                .sql-code {
-                    background-color: #f8f8f8;
-                    color: #2d3436;
-                    padding: 1rem;
-                    border-radius: 0.5rem;
-                    border: 1px solid #e0e0e0;
-                    overflow-x: auto;
-                    font-family: 'Courier New', monospace;
-                    font-size: 0.9rem;
-                    line-height: 1.5;
-                }
-                </style>
-                """, unsafe_allow_html=True)
+            with col1.expander("🔍 SQL Query", expanded=False):
                 st.code(result.sql_query, language="sql")
+        
+        # Analysis Code
+        if result.analysis_code:
+            with col2.expander("📊 Analysis Code", expanded=False):
+                st.code(result.analysis_code, language="python")
+        
+        # Visualization Code
+        if result.visualization_code:
+            with col3.expander("📈 Viz Code", expanded=False):
+                st.code(result.visualization_code, language="python")
 
 
 def main():
@@ -557,20 +554,23 @@ def main():
             status_placeholder.empty()
             import traceback
             
-            # Provide more context based on error type
+            # Get full error details for debugging
             error_str = str(e)
+            traceback_str = traceback.format_exc()
+            
+            # Provide more context based on error type
             if "visualization_agent" in error_str.lower():
-                error_msg = "❌ Visualization Agent Error\n\nThe visualization agent encountered an issue. This usually means:\n- No query results were available\n- The query returned empty results\n- The data types were incompatible with the chart type"
+                error_msg = f"❌ Visualization Agent Error\n\n{error_str}"
             elif "sql" in error_str.lower():
-                error_msg = "❌ SQL Query Error\n\nThe SQL agent couldn't generate a valid query. Try:\n- Being more specific about what data you need\n- Checking table/column names\n- Simplifying your request"
+                error_msg = f"❌ SQL Query Error\n\n{error_str}"
             elif "analysis" in error_str.lower():
-                error_msg = "❌ Analysis Agent Error\n\nThe analysis agent encountered an issue. Try:\n- Asking a simpler question\n- Providing more context\n- Checking data types"
+                error_msg = f"❌ Analysis Agent Error\n\n{error_str}"
             else:
-                error_msg = f"❌ {error_str}"
+                error_msg = f"❌ Error: {error_str}"
             
             st.error(error_msg)
-            with st.expander("📋 Error Details"):
-                st.code(traceback.format_exc(), language="python")
+            with st.expander("📋 Full Error Details (for debugging)"):
+                st.code(traceback_str, language="python")
             st.session_state.messages.append({"role": "assistant", "content": error_msg})
         
         st.rerun()

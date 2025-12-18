@@ -142,6 +142,44 @@ PINECONE_INDEX_NAME=analytics
 # Chroma (lightweight, local)
 VECTOR_STORE_TYPE=chroma
 CHROMA_PERSIST_DIRECTORY=./chroma_data
+
+# Azure Cognitive Search (enterprise scale)
+VECTOR_STORE_TYPE=azure_search
+AZURE_SEARCH_ENDPOINT=https://your-service.search.windows.net
+AZURE_SEARCH_KEY=your-admin-key
+AZURE_SEARCH_INDEX_NAME=analytics
+
+# AWS OpenSearch (enterprise scale, 10M+ documents)
+VECTOR_STORE_TYPE=opensearch
+OPENSEARCH_URL=https://your-domain.region.es.amazonaws.com
+OPENSEARCH_USERNAME=admin
+OPENSEARCH_PASSWORD=your-password
+
+# AWS Kendra (enterprise document retrieval with ML)
+VECTOR_STORE_TYPE=kendra
+KENDRA_INDEX_ID=your-index-id
+AWS_REGION=us-east-1
+
+# AWS Aurora PostgreSQL with pgvector (hybrid queries)
+VECTOR_STORE_TYPE=aurora_pgvector
+AURORA_HOST=your-cluster.region.rds.amazonaws.com
+AURORA_PORT=5432
+AURORA_USER=postgres
+AURORA_PASSWORD=your-password
+AURORA_DB_NAME=analytics
+
+# AWS DynamoDB (serverless, <100K documents)
+VECTOR_STORE_TYPE=dynamodb
+DYNAMODB_TABLE_NAME=documents
+AWS_REGION=us-east-1
+
+# Google Cloud Vertex AI Vector Search (managed, 1M+ documents)
+VECTOR_STORE_TYPE=vertex_ai
+GCP_PROJECT_ID=your-project-id
+GCP_REGION=us-central1
+VERTEX_AI_INDEX_ID=your-index-id
+VERTEX_AI_ENDPOINT=your-endpoint-id
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 ```
 
 ## Example Configurations

@@ -114,9 +114,16 @@ Your task: Synthesize this into a natural, helpful response for the user."""),
         """
         sections = []
         
-        # 1. SQL Query Results
+        # 1. SQL Query Results (check both query_results and cached_dataframe)
+        data_source = None
         if state.query_results is not None:
-            sections.append(self._summarize_query_results(state.query_results))
+            data_source = state.query_results
+        elif state.cached_dataframe is not None:
+            data_source = state.cached_dataframe
+            print("[CommunicationAgent] Using cached_dataframe as data source")
+        
+        if data_source is not None:
+            sections.append(self._summarize_query_results(data_source))
         
         # 2. Analysis Results
         if state.analysis_results:
