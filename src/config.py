@@ -55,9 +55,9 @@ class Config(BaseModel):
     
     # Vector Store Settings
     vector_store_type: Literal[
-        "faiss", "weaviate", "opensearch", "kendra", "aurora_pgvector", "dynamodb", 
+        "faiss", "lancedb", "weaviate", "opensearch", "kendra", "aurora_pgvector", "dynamodb", 
         "azure_search", "vertex_ai", "pinecone", "chroma"
-    ] = os.getenv("VECTOR_STORE_TYPE", "faiss")
+    ] = os.getenv("VECTOR_STORE_TYPE", "lancedb")
     
     # Embedding Model Settings
     embedding_provider: Literal["openai", "huggingface", "cohere", "bedrock", "vertex_ai"] = os.getenv(
@@ -137,6 +137,10 @@ class Config(BaseModel):
     cache_ttl_seconds: int = int(os.getenv("CACHE_TTL_SECONDS", "3600"))  # 1 hour default
     auto_sample_large_results: bool = os.getenv("AUTO_SAMPLE_LARGE_RESULTS", "false").lower() == "true"
     sample_size: int = int(os.getenv("SAMPLE_SIZE", "1000"))  # Sample size for large results
+    
+    # Preprocessing Settings (NEW)
+    preprocessing_mode: Literal["confirm", "auto", "manual"] = os.getenv("PREPROCESSING_MODE", "confirm")
+    auto_fill_threshold: float = float(os.getenv("AUTO_FILL_THRESHOLD", "0.05"))  # Auto-fill if <5% missing
     
     # Streamlit
     streamlit_port: int = int(os.getenv("STREAMLIT_PORT", "8501"))

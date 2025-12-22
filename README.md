@@ -1,5 +1,7 @@
 # Agentic Analytics
 
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 > A core framework for agent-assisted analytical workflows, with a reference user interface called **Data Copilot**.
 
 **Agentic Analytics** is a core analytics framework that orchestrates role-based agents to support multi-step analytical workflows, including SQL execution, result analysis, visualization, and human-readable summaries.
@@ -26,9 +28,13 @@
 
 ## Key Features
 
-- **Multi-Agent Architecture**: Specialized agents for SQL generation, analysis, visualization, and communication
+- **Multi-Agent Architecture**: Specialized agents for SQL, profiling, preprocessing, modeling, analysis, visualization, and communication
 - **Hybrid Routing System**: 3-tier intelligent query classification (Regex -> Keywords -> LLM) for optimal performance
 - **RAG Integration**: Automatic schema indexing and semantic search for context-aware responses
+- **ML Pipeline Support**: Full machine learning workflow with data profiling, preprocessing confirmation, and automated model training
+- **Human-in-the-Loop**: User confirmation for preprocessing and modeling decisions with transparent recommendations
+- **Error-Aware Retry**: Intelligent code regeneration for preprocessing and modeling agents (fixes common errors automatically)
+- **Method Knowledge Base**: 40+ curated statistical tests and ML algorithms with smart recommendation system
 - **Security First**: SQL injection prevention, safe DataFrame handling, query row limits
 - **Smart Caching**: Result caching with configurable limits and concurrent read access
 - **Real-time Visualization**: Inline charts and tables with automatic formatting
@@ -58,11 +64,24 @@ AWS Bedrock       Azure OpenAI        Local Models (Ollama)
 ### Supported Vector Stores
 
 ```
-FAISS (in-memory)         Weaviate (persistent)  Pinecone
-Chroma                    OpenSearch             Kendra
-Aurora pgvector           DynamoDB               Vertex AI Vector Search
-Azure Cognitive Search
+LanceDB (default)         FAISS (in-memory)      Weaviate
+Chroma                    OpenSearch             Pinecone
+Kendra                    Aurora pgvector        DynamoDB
+Vertex AI                 Azure Cognitive Search
 ```
+
+### Method Knowledge Base
+
+**NEW: Curated Statistical & ML Method Cards** - Intelligent method recommendation system
+
+Agentic Analytics includes a comprehensive knowledge base of 40+ statistical tests, ML algorithms, preprocessing techniques, and evaluation metrics. Each method card provides:
+
+- **Smart Recommendations**: Data-aware retrieval based on sample size, missing values, normality, multicollinearity, etc.
+- **Detailed Guidance**: When to use, assumptions, interpretation guides, and typical use cases
+- **Multi-Package Support**: scikit-learn, scipy, statsmodels integration
+**Coverage**: Regression (OLS, Ridge, Lasso, GLS), ANOVA, t-tests, z-tests, binomial tests, chi-square, evaluation metrics (MSE, R², AUC, Precision, Recall), and more.
+
+See [method_cards/README.md](method_cards/README.md) for details and [docs/METHOD_CARDS.md](docs/METHOD_CARDS.md) for integration guide.
 
 ### Quick Customization
 
@@ -190,15 +209,18 @@ Complete architecture and implementation details:
 
 - [QUICKSTART.md](QUICKSTART.md) - Step-by-step setup and first use with Data Copilot
 - [SETUP.md](SETUP.md) - Comprehensive environment setup guide
+- [STREAMLIT_TESTING.md](STREAMLIT_TESTING.md) - Testing scenarios and validation guide
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - **Agentic Analytics core architecture and agent orchestration**
 - [docs/PROVIDERS.md](docs/PROVIDERS.md) - LLM and database provider configuration
+- [docs/METHOD_CARDS.md](docs/METHOD_CARDS.md) - Statistical methods and ML algorithm knowledge base
+- [docs/RAG_SYSTEM.md](docs/RAG_SYSTEM.md) - RAG system architecture and vector stores
 - [docs/HYBRID_ROUTING_IMPLEMENTATION.md](docs/HYBRID_ROUTING_IMPLEMENTATION.md) - Query routing deep dive
 - [docs/HYBRID_ROUTING_QUICKREF.md](docs/HYBRID_ROUTING_QUICKREF.md) - Routing examples and usage
+- [docs/ERROR_AWARE_RETRY.md](docs/ERROR_AWARE_RETRY.md) - Error-aware retry for code generation agents
 - [docs/SQL_SECURITY.md](docs/SQL_SECURITY.md) - SQL injection prevention strategies
 - [docs/CACHE_SYSTEM.md](docs/CACHE_SYSTEM.md) - Result caching design and policies
 - [docs/STATEFUL_CONVERSATION.md](docs/STATEFUL_CONVERSATION.md) - Conversation history and snapshots
 - [docs/STREAMING_STATUS.md](docs/STREAMING_STATUS.md) - Streaming agent reasoning visibility
-- [docs/VECTOR_STORES.md](docs/VECTOR_STORES.md) - RAG vector store configuration
 - [docs/MULTI_TURN_CONTEXT.md](docs/MULTI_TURN_CONTEXT.md) - Multi-turn conversation context management
 - [docs/CHANGELOG.md](docs/CHANGELOG.md) - Version history and updates
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) - Contributing guidelines
@@ -217,6 +239,9 @@ AgenticAnalytics/
 │   │   ├── orchestrator.py        # Multi-agent coordinator
 │   │   ├── query_classifier.py    # Hybrid query routing (3-tier)
 │   │   ├── sql_agent.py           # SQL generation with JOIN intelligence
+│   │   ├── profiling_agent.py     # Data profiling and quality assessment
+│   │   ├── preprocessing_agent.py # Data preprocessing with error-aware retry
+│   │   ├── modeling_agent.py      # ML model training with error-aware retry
 │   │   ├── analysis_agent.py      # Statistical analysis agent
 │   │   ├── visualization_agent.py # Chart and visualization agent
 │   │   ├── communication_agent.py # Response formatting agent
@@ -294,7 +319,7 @@ Contributions are welcome! Please see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.m
 
 ## 📄 License
 
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see [LICENSE](LICENSE) file for details.
 
 ## 🙋 Support
 

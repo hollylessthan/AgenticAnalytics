@@ -1,0 +1,129 @@
+# Preprocessing: Imputation Method Cards
+
+- method_name: "SimpleImputer (mean)"
+  category: "preprocessing_imputation"
+  problem_type: "missing_values"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    sample_size_recommended: 100
+    normality_required: false
+    handles_non_normal: true
+    handles_missing: true  # This IS the imputation method
+    requires_complete_data: false
+    handles_categorical: false
+    requires_numeric: true
+    supports_binary_target: false
+    supports_multiclass_target: false
+    supports_continuous_target: false
+    requires_independence: false
+    handles_outliers: false
+    requires_balanced_classes: false
+  assumptions:
+    - "Missing data is MCAR (Missing Completely At Random) or MAR (Missing At Random)"
+    - "Data is numeric"
+    - "No severe outliers that would skew the mean"
+  when_to_use: "Numeric features with missing values. Data is roughly symmetric/normal. Missing percentage < 30%. Simple baseline imputation. Features don't have severe outliers."
+  when_not_to_use: "Categorical features (use mode instead). Skewed data or outliers (use median). Missing > 40% (consider dropping column). Time series with trend (use forward-fill)."
+  alternatives: ["SimpleImputer (median)", "SimpleImputer (mode)", "KNNImputer", "IterativeImputer"]
+  code_example: |
+    from sklearn.impute import SimpleImputer
+    imputer = SimpleImputer(strategy='mean')
+    X_imputed = imputer.fit_transform(X)
+    # Can also use in pipeline
+    from sklearn.pipeline import Pipeline
+    pipe = Pipeline([('imputer', SimpleImputer(strategy='mean')), ('model', model)])
+  parameters:
+    strategy: "'mean' - replace with column mean"
+    missing_values: "Value to treat as missing (default: np.nan)"
+    add_indicator: "Add binary indicator for imputed values"
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.impute.SimpleImputer.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  library_version: "1.8.0"
+  supporting_excerpt: "The SimpleImputer class provides basic strategies for imputing missing values. Missing values can be imputed with a provided constant value, or using the statistics (mean, median or most frequent) of each column."
+  last_updated: "2025-12-21"
+  confidence: 1.0
+
+- method_name: "SimpleImputer (median)"
+  category: "preprocessing_imputation"
+  problem_type: "missing_values"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    sample_size_recommended: 100
+    normality_required: false
+    handles_non_normal: true
+    handles_missing: true
+    requires_complete_data: false
+    handles_categorical: false
+    requires_numeric: true
+    supports_binary_target: false
+    supports_multiclass_target: false
+    supports_continuous_target: false
+    requires_independence: false
+    handles_outliers: true
+    requires_balanced_classes: false
+  assumptions:
+    - "Missing data is MCAR or MAR"
+    - "Data is numeric"
+  when_to_use: "Numeric features with missing values. Skewed distributions. Outliers present. Missing percentage < 30%. More robust than mean for non-normal data."
+  when_not_to_use: "Categorical features (use mode). Missing > 40%. Time series with trend. Need to preserve mean (use mean imputer)."
+  alternatives: ["SimpleImputer (mean)", "SimpleImputer (mode)", "KNNImputer", "IterativeImputer"]
+  code_example: |
+    from sklearn.impute import SimpleImputer
+    imputer = SimpleImputer(strategy='median')
+    X_imputed = imputer.fit_transform(X)
+  parameters:
+    strategy: "'median' - replace with column median"
+    missing_values: "Value to treat as missing (default: np.nan)"
+    add_indicator: "Add binary indicator for imputed values"
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.impute.SimpleImputer.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  library_version: "1.8.0"
+  supporting_excerpt: "The SimpleImputer class provides basic strategies for imputing missing values. The median is more robust to outliers than the mean."
+  last_updated: "2025-12-21"
+  confidence: 1.0
+
+- method_name: "SimpleImputer (mode)"
+  category: "preprocessing_imputation"
+  problem_type: "missing_values"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    sample_size_recommended: 100
+    normality_required: false
+    handles_non_normal: true
+    handles_missing: true
+    requires_complete_data: false
+    handles_categorical: true
+    requires_numeric: false
+    supports_binary_target: false
+    supports_multiclass_target: false
+    supports_continuous_target: false
+    requires_independence: false
+    handles_outliers: true
+    requires_balanced_classes: false
+  assumptions:
+    - "Missing data is MCAR or MAR"
+    - "Most frequent value is meaningful"
+  when_to_use: "Categorical features with missing values. Ordinal features. Binary features. Missing percentage < 30%. When most frequent value is representative."
+  when_not_to_use: "Continuous numeric features (use mean/median). Missing > 40%. Balanced categorical distribution (mode not meaningful). High cardinality categorical features."
+  alternatives: ["SimpleImputer (constant)", "KNNImputer", "Category encoding with missing indicator"]
+  code_example: |
+    from sklearn.impute import SimpleImputer
+    imputer = SimpleImputer(strategy='most_frequent')
+    X_imputed = imputer.fit_transform(X)
+    # Works with both numeric and string categorical data
+  parameters:
+    strategy: "'most_frequent' - replace with most common value"
+    missing_values: "Value to treat as missing (default: np.nan)"
+    add_indicator: "Add binary indicator for imputed values"
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.impute.SimpleImputer.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  library_version: "1.8.0"
+  supporting_excerpt: "The 'most_frequent' strategy can be used with strings or numeric data. If there are multiple such values, only the smallest is returned."
+  last_updated: "2025-12-21"
+  confidence: 1.0

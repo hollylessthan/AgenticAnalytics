@@ -225,8 +225,13 @@ cd testing
 # Load into DuckDB
 python setup_tpcds_duckdb.py --scale 1
 
-# Generate RAG documents
+# Generate and load RAG documents
 python generate_rag_documents.py
+python load_rag_documents.py
+
+# Load method cards for ML/statistics recommendations
+python load_method_cards.py
+
 cd ..
 ```
 
@@ -234,6 +239,8 @@ This creates a realistic retail analytics database with:
 - 24 tables (customers, orders, products, sales, etc.)
 - ~10M rows of realistic data
 - Industry-standard TPC-DS schema
+- RAG-indexed schema for intelligent query generation
+- 40+ method cards for statistical tests and ML models
 
 ## Step 4: Launch Data Copilot (1 min)
 
@@ -247,8 +254,9 @@ Visit `http://localhost:8501` in your browser.
 Data Copilot will automatically:
 1. ✅ Connect to your database
 2. ✅ Index your schema with the vector store
-3. ✅ Initialize the Agentic Analytics framework
-4. ✅ Be ready for natural language queries
+3. ✅ Load method cards for ML/statistics (if not already loaded)
+4. ✅ Initialize the Agentic Analytics framework
+5. ✅ Be ready for natural language queries
 
 ## Step 5: Start Querying!
 
@@ -290,14 +298,23 @@ Agentic Analytics will:
    WEAVIATE_URL=http://localhost:8080
    ```
 
-4. **Run Data Copilot**
+4. **Load method cards for ML/statistics** (one-time setup)
+   ```bash
+   cd testing
+   python load_method_cards.py
+   cd ..
+   ```
+   This indexes 40+ statistical tests and ML algorithms for intelligent recommendations during modeling.
+
+5. **Run Data Copilot**
    ```bash
    streamlit run src/app.py
    ```
 
-5. **Agentic Analytics automatically**:
+6. **Agentic Analytics automatically**:
    - Discovers all your tables and columns
    - Indexes schema for intelligent query generation
+   - Loads method cards for ML recommendations
    - Ready to answer questions about your data
 
 ### Agentic Analytics Supports

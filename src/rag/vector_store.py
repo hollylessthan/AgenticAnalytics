@@ -898,6 +898,292 @@ class VertexAIVectorStore(VectorStoreBase):
         pass
 
 
+class LanceDBVectorStore(VectorStoreBase):
+    """LanceDB-based vector store with metadata filtering support.
+    
+    Supports filtering by:
+    - source: 'database_schema', 'sklearn', 'scipy', 'pandas', 'ml_guide'
+    - topic: 'preprocessing', 'modeling', 'statistics', 'data_quality'
+    - doc_type: 'schema', 'ml_guide', 'stats_guide', 'api_reference'
+    """
+    
+    def __init__(self, embeddings: Optional[Embeddings] = None, db_path: str = "./lancedb", table_name: str = "analytics_rag"):
+        """Initialize LanceDB vector store.
+        
+        Args:
+            embeddings: Optional embeddings instance (uses factory if not provided)
+            db_path: Path to LanceDB database directory
+            table_name: Name of the table to use (default: "analytics_rag")
+        """
+        import lancedb
+        
+        self.embeddings = embeddings or get_embeddings()
+        self.db_path = db_path
+        self.table_name = table_name
+        
+        # Connect to LanceDB
+        self.db = lancedb.connect(db_path)
+        self.table = None
+        
+        # Try to open existing table (silently fail if doesn't exist)
+        try:
+            self.table = self.db.open_table(self.table_name)
+            print(f"[LanceDB] Opened existing table: {self.table_name}")
+        except:
+            # Table will be created when first document is added
+            pass
+    
+    def add_documents(self, documents: List[Document]) -> None:
+        """Add documents to LanceDB with metadata.
+        
+        Args:
+            documents: List of documents with metadata to add
+        """
+        if not documents:
+            return
+        
+        import json
+        
+        # Prepare data with embeddings and metadata
+        data = []
+        for doc in documents:
+            # Generate embedding
+            embedding = self.embeddings.embed_query(doc.page_content)
+            
+            # Extract metadata fields
+            metadata = doc.metadata or {}
+            
+            data.append({
+                "content": doc.page_content,
+                "vector": embedding,
+                "source": metadata.get("source", "unknown"),
+                "topic": metadata.get("topic", "general"),
+                "doc_type": metadata.get("doc_type", "general"),
+                "file_path": metadata.get("file_path", ""),
+                "chunk_id": metadata.get("chunk_id", 0),
+                # Store full metadata as JSON string for flexibility
+                "metadata_json": json.dumps(metadata)
+            })
+        
+        # Create or append to table
+        if self.table is None:
+            self.table = self.db.create_table(self.table_name, data)
+            print(f"[LanceDB] Created table '{self.table_name}' with {len(data)} documents")
+        else:
+            self.table.add(data)
+            print(f"[LanceDB] Added {len(data)} documents to '{self.table_name}'")
+    
+    def similarity_search(
+        self, 
+        query: str, 
+        k: int = 5,
+        filter_dict: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
+        """Search for similar documents with optional metadata filtering.
+        
+        Args:
+            query: Search query
+            k: Number of results to return
+            filter_dict: Optional metadata filters, e.g.:
+                {"source": "sklearn"}
+                {"topic": "preprocessing"}
+                {"doc_type": "ml_guide", "source": "sklearn"}
+        
+        Returns:
+            List of similar documents
+        """
+        if self.table is None:
+            return []
+        
+        # Generate query embedding
+        query_embedding = self.embeddings.embed_query(query)
+        
+        # Build search query
+        search = self.table.search(query_embedding).limit(k)
+        
+        # Apply metadata filters if provided
+        if filter_dict:
+            filter_conditions = []
+            for key, value in filter_dict.items():
+                if key in ["source", "topic", "doc_type"]:
+                    filter_conditions.append(f"{key} = '{value}'")
+            
+            if filter_conditions:
+                filter_str = " AND ".join(filter_conditions)
+                search = search.where(filter_str)
+        
+        # Execute search
+        results = search.to_list()
+        
+        # Convert to LangChain documents
+        documents = []
+        for result in results:
+            metadata = {
+                "source": result.get("source", "unknown"),
+                "topic": result.get("topic", "general"),
+                "doc_type": result.get("doc_type", "general"),
+                "file_path": result.get("file_path", ""),
+                "chunk_id": result.get("chunk_id", 0),
+                "score": result.get("_distance", 0.0)
+            }
+            
+            # Include metadata_json if present (for method cards)
+            if "metadata_json" in result:
+                metadata["metadata_json"] = result["metadata_json"]
+            
+            documents.append(Document(
+                page_content=result["content"],
+                metadata=metadata
+            ))
+        
+        return documents
+    
+    def similarity_search_with_rerank(
+        self,
+        query: str,
+        k: int = 5,
+        initial_k: int = 20,
+        filter_dict: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
+        """Search with reranking for better relevance.
+        
+        Retrieves more candidates (initial_k), then reranks using keyword matching
+        and returns top k results.
+        
+        Args:
+            query: Search query
+            k: Number of final results to return
+            initial_k: Number of initial candidates to retrieve
+            filter_dict: Optional metadata filters
+        
+        Returns:
+            Reranked list of documents
+        """
+        # Get more candidates than needed
+        candidates = self.similarity_search(query, k=initial_k, filter_dict=filter_dict)
+        
+        if not candidates:
+            return []
+        
+        # Keyword-based reranking with dynamic relevance scoring
+        query_terms = set(query.lower().split())
+        
+        scored_docs = []
+        for doc in candidates:
+            content_lower = doc.page_content.lower()
+            
+            # Count keyword matches in content
+            keyword_score = sum(1 for term in query_terms if term in content_lower)
+            
+            # Boost for keyword matches in topic metadata (more specific)
+            topic = doc.metadata.get("topic", "").lower()
+            topic_match_score = sum(1 for term in query_terms if term in topic) * 2
+            
+            # Combine with vector similarity (from metadata)
+            vector_score = 1.0 - doc.metadata.get("score", 0.5)  # Lower distance = higher score
+            
+            # Weighted combination with topic boosting
+            # 50% semantic, 30% keyword, 20% topic metadata
+            combined_score = (
+                (0.5 * vector_score) + 
+                (0.3 * (keyword_score / max(len(query_terms), 1))) +
+                (0.2 * (topic_match_score / max(len(query_terms), 1)))
+            )
+            
+            scored_docs.append((combined_score, doc))
+        
+        # Sort by combined score (descending)
+        scored_docs.sort(reverse=True, key=lambda x: x[0])
+        
+        # Return top k with updated scores
+        reranked = []
+        for score, doc in scored_docs[:k]:
+            doc.metadata["rerank_score"] = score
+            reranked.append(doc)
+        
+        return reranked
+    
+    def similarity_search_by_source(
+        self,
+        query: str,
+        source: str,
+        k: int = 5
+    ) -> List[Document]:
+        """Search within a specific source (convenience method).
+        
+        Args:
+            query: Search query
+            source: Source filter (e.g., 'sklearn', 'database_schema')
+            k: Number of results
+        
+        Returns:
+            Filtered documents
+        """
+        return self.similarity_search(query, k=k, filter_dict={"source": source})
+    
+    def similarity_search_by_topic(
+        self,
+        query: str,
+        topic: str,
+        k: int = 5
+    ) -> List[Document]:
+        """Search within a specific topic (convenience method).
+        
+        Args:
+            query: Search query
+            topic: Topic filter (e.g., 'preprocessing', 'modeling')
+            k: Number of results
+        
+        Returns:
+            Filtered documents
+        """
+        return self.similarity_search(query, k=k, filter_dict={"topic": topic})
+    
+    def get_sources(self) -> List[str]:
+        """Get all unique sources in the database.
+        
+        Returns:
+            List of unique source values
+        """
+        if self.table is None:
+            return []
+        
+        try:
+            # Query distinct sources
+            result = self.table.to_pandas()["source"].unique().tolist()
+            return result
+        except:
+            return []
+    
+    def get_topics(self) -> List[str]:
+        """Get all unique topics in the database.
+        
+        Returns:
+            List of unique topic values
+        """
+        if self.table is None:
+            return []
+        
+        try:
+            result = self.table.to_pandas()["topic"].unique().tolist()
+            return result
+        except:
+            return []
+    
+    def save(self, path: str = None) -> None:
+        """LanceDB persists data automatically to db_path."""
+        print(f"[LanceDB] Data automatically persisted to {self.db_path}")
+    
+    def load(self, path: str = None) -> None:
+        """Load existing LanceDB table."""
+        try:
+            self.table = self.db.open_table(self.table_name)
+            print(f"[LanceDB] Loaded table '{self.table_name}'")
+        except Exception as e:
+            print(f"[LanceDB] Could not load table: {e}")
+            self.table = None
+
+
 def get_vector_store(
     vector_store_type: Optional[str] = None,
     embeddings: Optional[Embeddings] = None
@@ -918,6 +1204,8 @@ def get_vector_store(
     
     if store_type == "faiss":
         return FAISSVectorStore(embeddings)
+    elif store_type == "lancedb":
+        return LanceDBVectorStore(embeddings)
     elif store_type == "weaviate":
         return WeaviateVectorStore(embeddings)
     elif store_type == "opensearch":
@@ -939,5 +1227,5 @@ def get_vector_store(
     else:
         raise ValueError(
             f"Unsupported vector store type: {store_type}. "
-            f"Supported types: faiss, weaviate, opensearch, pinecone, chroma, azure_search, kendra, aurora_pgvector, dynamodb, vertex_ai"
+            f"Supported types: faiss, lancedb, weaviate, opensearch, pinecone, chroma, azure_search, kendra, aurora_pgvector, dynamodb, vertex_ai"
         )

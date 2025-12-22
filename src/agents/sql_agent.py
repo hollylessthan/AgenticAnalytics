@@ -30,6 +30,15 @@ class SQLAgent(BaseAgent):
         self.cache_manager = DataCacheManager(config)
         self.smart_limit = smart_limit
         self.smart_limit_rows = smart_limit_rows
+        
+        # Initialize RAG system for schema/query example retrieval
+        try:
+            from src.rag.rag_system import RAGSystem
+            self.rag_system = RAGSystem(config)
+            print("[SQLAgent] RAG system initialized for schema context retrieval")
+        except Exception as e:
+            print(f"[SQLAgent] RAG system not available: {e}")
+            self.rag_system = None
     
     def execute(self, state: AgentState) -> AgentState:
         """Execute SQL query generation and data retrieval.
@@ -57,6 +66,18 @@ class SQLAgent(BaseAgent):
             if pinned_tables_info:
                 schema_info += f"\n\n{pinned_tables_info}"
             
+            # Enhance with RAG schema context (if available)
+            rag_schema_context = ""
+            if self.rag_system:
+                try:
+                    rag_docs = self.rag_system.retrieve_schema_context(state.query, k=2)
+                    if rag_docs:
+                        rag_schema_context = "\n\nRelevant Schema Documentation:\n"
+                        rag_schema_context += "\n".join([doc.page_content for doc in rag_docs])
+                        print(f"[SQLAgent] Retrieved {len(rag_docs)} schema documents from RAG")
+                except Exception as e:
+                    print(f"[SQLAgent] RAG schema retrieval failed: {e}")
+            
             # Try to generate and execute SQL with error-aware retries
             sql_query = None
             query_result = None
@@ -64,8 +85,13 @@ class SQLAgent(BaseAgent):
             
             for attempt in range(max_query_retries):
                 if attempt == 0:
-                    # First attempt: generate fresh SQL
-                    sql_query = self._generate_sql_query(state.query, schema_info, state.last_sql_query)
+                    # First attempt: generate fresh SQL with RAG context
+                    sql_query = self._generate_sql_query(
+                        state.query, 
+                        schema_info, 
+                        state.last_sql_query,
+                        rag_context=rag_schema_context
+                    )
                 else:
                     # Subsequent attempts: regenerate based on previous error
                     error_info = query_result.get('error', '')
@@ -142,13 +168,14 @@ class SQLAgent(BaseAgent):
         
         return state
     
-    def _generate_sql_query(self, user_query: str, schema_info: str, previous_query: str = None) -> str:
+    def _generate_sql_query(self, user_query: str, schema_info: str, previous_query: str = None, rag_context: str = "") -> str:
         """Generate SQL query from natural language.
         
         Args:
             user_query: User's natural language query
             schema_info: Database schema information
             previous_query: Previous SQL query for context (optional)
+            rag_context: RAG-retrieved schema documentation
             
         Returns:
             SQL query string
@@ -185,7 +212,9 @@ IMPORTANT: When the user asks to "convert", "format", "transform", "change", or 
 
 Database Schema:
 {schema}
-""" + context_section + """
+""" + context_section + (f"""
+{rag_context}
+""" if rag_context else "") + """
 CRITICAL RULES:
 1. Output ONLY the complete SQL query - nothing else
 2. NO markdown, NO code blocks, NO explanations
@@ -210,7 +239,7 @@ For data queries:
 - Use proper JOINs to enrich data with human-readable values
 - Add WHERE clauses for filtering
 - Include ORDER BY for sorting
-- Add LIMIT for large result sets (default LIMIT 100)
+- Add LIMIT clause for large result sets when appropriate (system may apply automatic limits)
 
 SECURITY: You are operating in read-only mode. Any attempt to modify data will be blocked.
 

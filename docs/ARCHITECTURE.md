@@ -100,7 +100,7 @@ Input Query
 ┌─────────────────────────────────┐
 │ STATE: Classify Query           │
 │ - Run hybrid router             │
-│ - Determine query type          │
+│ - Determine plan type           │
 │ - Select appropriate agent(s)   │
 └─────────────────────────────────┘
     ↓
@@ -110,6 +110,23 @@ Input Query
 │ │  ├─ Retrieve schema context   │
 │ │  ├─ Generate SQL              │
 │ │  └─ Execute & limit results   │
+│ │                               │
+│ ├─ Profiling Agent (if needed)  │
+│ │  ├─ Generate data profile     │
+│ │  ├─ Quality assessment        │
+│ │  └─ RAG test suggestions      │
+│ │                               │
+│ ├─ Preprocessing Agent (opt)    │
+│ │  ├─ RAG recommendations       │
+│ │  ├─ User confirmation         │
+│ │  ├─ Apply transformations     │
+│ │  └─ Error-aware retry         │
+│ │                               │
+│ ├─ Modeling Agent (optional)    │
+│ │  ├─ Intent detection          │
+│ │  ├─ RAG model selection       │
+│ │  ├─ Train model               │
+│ │  └─ Error-aware retry         │
 │ │                               │
 │ ├─ Analysis Agent (if needed)   │
 │ │  ├─ Compute statistics        │
@@ -124,6 +141,7 @@ Input Query
 │ └─ Communication Agent          │
 │    ├─ Format response           │
 │    ├─ Add context               │
+│    ├─ Handle confirmations      │
 │    └─ Prepare for streaming     │
 └─────────────────────────────────┘
     ↓
@@ -142,24 +160,71 @@ Output with inline visualizations
 The orchestrator maintains state throughout execution:
 
 ```python
-class OrchestrationState(TypedDict):
+class AgentState(BaseModel):
     """State passed between agents."""
-    query: str                          # Original user query
-    query_type: str                     # Classified type (sql, analysis, etc)
-    schema_context: str                 # Relevant schema info
-    sql_query: Optional[str]            # Generated SQL
-    query_results: Optional[pd.DataFrame]  # Query execution results
-    analysis: Optional[str]             # Statistical analysis
-    visualization: Optional[str]        # Chart/visualization data
-    intermediate_steps: List[str]       # Execution log
-    error: Optional[str]                # Error message if any
-    final_answer: str                   # Formatted response
-    metadata: Dict                      # Additional context
+    query: str                                 # Original user query
+    plan_type: Optional[str]                   # Execution plan (SQL_ONLY, SQL_MODELING, etc)
+    confidence_score: Optional[float]          # Classifier confidence
+    agent_chain: List[str]                     # Sequence of agents executed
+    
+    # SQL outputs
+    sql_query: Optional[str]                   # Generated SQL
+    query_results: Optional[Any]               # Query execution results
+    
+    # Profiling outputs
+    data_profile: Optional[Dict[str, Any]]     # Comprehensive data profile
+    data_summary: Optional[Dict[str, Any]]     # Quick quality summary
+    
+    # Preprocessing outputs
+    preprocessing_needed: Optional[Dict]       # Recommended transformations
+    preprocessing_approved: List[str]          # User-approved steps
+    preprocessing_applied: Optional[Dict]      # Applied transformations
+    preprocessed_dataframe: Optional[Any]      # Preprocessed data
+    preprocessing_code: Optional[str]          # Generated preprocessing code
+    needs_preprocessing_confirmation: bool     # Pause for user approval
+    
+    # Modeling outputs
+    model_results: Optional[Dict[str, Any]]    # Training results & metrics
+    model_summary: Optional[str]               # Formatted model summary
+    modeling_code: Optional[str]               # Generated training code
+    
+    # Analysis outputs
+    analysis_code: Optional[str]               # Generated analysis code
+    analysis_results: Optional[str]            # Analysis findings
+    
+    # Visualization outputs
+    visualization_code: Optional[str]          # Visualization code
+    visualization_path: Optional[str]          # Chart file path
+    
+    # Communication outputs
+    final_response: Optional[str]              # Main response to user
+    final_answer: Optional[str]                # Backward compatibility
+    
+    # Session state
+    cached_dataframe: Optional[Any]            # Cached data from previous query
+    state_history: List[ConversationSnapshot]  # Multi-turn context
+    
+    # Error handling
+    errors: List[str]                          # Error messages
+    metadata: Dict[str, Any]                   # Additional context
 ```
 
 ## Query Classifier (Hybrid Router)
 
-The **Query Classifier** (`src/agents/query_classifier.py`) uses a 3-tier approach to determine optimal query handling:
+The **Query Classifier** (`src/agents/query_classifier.py`) uses a 3-tier approach to determine optimal execution plans:
+
+### Plan Types
+
+```python
+class PlanType(Enum):
+    SQL_ONLY = "sql_only"                    # Simple SQL query
+    SQL_ANALYSIS = "sql_analysis"            # SQL + statistical analysis
+    SQL_VIZ = "sql_viz"                      # SQL + visualization
+    SQL_ANALYSIS_VIZ = "sql_analysis_viz"    # SQL + analysis + viz
+    SQL_PROFILING = "sql_profiling"          # SQL + data profiling
+    SQL_PREPROCESSING = "sql_preprocessing"  # SQL + profile + preprocess
+    SQL_MODELING = "sql_modeling"            # Full ML pipeline
+```
 
 ### Tier 1: Regex Rules (Fast)
 
@@ -167,9 +232,10 @@ Fast pattern matching for common simple queries:
 
 ```
 Pattern Examples:
-- COUNT(*), SUM(...), AVG(...) → Aggregation
-- SELECT * FROM ... → Simple select
-- WHERE clause with simple conditions → Filter
+- "show", "get", "list" → SQL_ONLY
+- "visualize", "plot", "chart" → SQL_VIZ
+- "profile", "explore", "EDA" → SQL_PROFILING
+- "model", "predict", "classify" → SQL_MODELING
 ```
 
 **Performance**: ~2ms  
@@ -181,10 +247,10 @@ Keyword-based classification for known query patterns:
 
 ```
 Keywords:
-- "top", "highest", "best" → Ranking/TopN
-- "trend", "over time", "monthly" → Time series
-- "compare", "vs", "versus" → Comparison
-- "group by", "breakdown" → Grouping
+- "preprocessing", "feature engineering" → SQL_PREPROCESSING
+- "train", "build model", "machine learning" → SQL_MODELING
+- "data quality", "missing values" → SQL_PROFILING
+- "top", "highest", "trend" → SQL_ANALYSIS
 ```
 
 **Performance**: ~5ms  
@@ -298,6 +364,121 @@ Multiple categories  → Grouped bar chart
 Proportions         → Pie/Donut chart
 ```
 
+### Profiling Agent
+
+**Purpose**: Generate comprehensive data quality profiles
+
+**Capabilities**:
+- **Data Quality Assessment**: Missing values, duplicates, outliers
+- **Statistical Analysis**: Distribution analysis, normality tests
+- **Type Detection**: Automatic column type identification
+- **Correlation Analysis**: Relationship detection between features
+- **RAG-Powered Test Suggestions**: Recommends appropriate statistical tests
+
+**Workflow**:
+```
+Input: DataFrame
+    ↓
+Profile Generation:
+  - Shape analysis (rows, columns)
+  - Missing value detection
+  - Duplicate detection
+  - Distribution analysis (skewness, kurtosis)
+  - Outlier detection (IQR method)
+  - Correlation matrix
+    ↓
+RAG Test Suggestions:
+  - Normality tests (Shapiro-Wilk)
+  - Group comparison tests (t-test, ANOVA)
+  - Regression suitability
+    ↓
+Output: Comprehensive data profile
+```
+
+### Preprocessing Agent
+
+**Purpose**: Transform and prepare data for modeling with error-aware retry
+
+**Capabilities**:
+- **RAG-Powered Recommendations**: Uses method cards for intelligent preprocessing
+- **Missing Value Handling**: Imputation strategies (mean, median, mode)
+- **Categorical Encoding**: Label encoding, one-hot encoding
+- **Feature Scaling**: StandardScaler, MinMaxScaler, RobustScaler
+- **Distribution Normalization**: Log/power transforms for skewed data
+- **Outlier Treatment**: IQR-based detection and handling
+- **Error-Aware Retry**: Regenerates code based on execution errors (up to 3 attempts)
+
+**Error Recovery**:
+```
+Attempt 1: Generate preprocessing code
+    ↓ [Execution fails: f-string error]
+Attempt 2: Regenerate with simpler variable names
+    ↓ [Execution fails: OneHotEncoder sparse parameter]
+Attempt 3: Regenerate with updated sklearn API
+    ↓
+Success: Preprocessed DataFrame
+```
+
+**User Confirmation Flow**:
+```
+Detect preprocessing needed
+    ↓
+Generate recommendations (RAG-powered)
+    ↓
+Pause for user approval (if mode = "confirm")
+    ↓
+User selects transformations
+    ↓
+Apply selected preprocessing
+    ↓
+Return preprocessed DataFrame
+```
+
+### Modeling Agent
+
+**Purpose**: Train and evaluate machine learning models with error-aware retry
+
+**Capabilities**:
+- **Intent Detection**: Identifies regression vs classification problems
+- **RAG-Powered Model Selection**: Recommends models from method cards
+- **Automated Training**: Generates and executes training code
+- **Model Evaluation**: Comprehensive metrics (R², RMSE, MAE, cross-validation)
+- **Feature Importance**: Identifies key predictive features
+- **Error-Aware Retry**: Fixes code generation errors automatically (up to 3 attempts)
+
+**Error Recovery**:
+```
+Attempt 1: Generate training code
+    ↓ [Execution fails: could not convert string to float 'M']
+Attempt 2: Regenerate with categorical encoding
+    ↓ [Execution fails: OneHotEncoder API error]
+Attempt 3: Regenerate with corrected sklearn API
+    ↓
+Success: Trained model with metrics
+```
+
+**Workflow**:
+```
+Input: Preprocessed DataFrame
+    ↓
+Intent Detection:
+  - Problem type (regression/classification)
+  - Target variable identification
+  - Feature selection
+    ↓
+RAG Model Selection:
+  - Query method cards database
+  - Rank models by suitability
+  - Select top candidate
+    ↓
+Code Generation & Execution:
+  - Generate training code
+  - Execute with error recovery
+  - Extract metrics and results
+    ↓
+Output: Model results + formatted summary
+```
+
 ### Communication Agent
 
 **Purpose**: Format responses for user consumption
@@ -308,6 +489,7 @@ Proportions         → Pie/Donut chart
 - Add context and explanations
 - Prepare for streaming output
 - Handle error messaging
+- Pause for preprocessing/modeling confirmations
 
 ## RAG System
 
@@ -351,6 +533,52 @@ Retrieved Context:
     ↓
 Passed to SQL Agent
 ```
+
+## Human-in-the-Loop Architecture
+
+Agentic Analytics incorporates **Human-in-the-Loop (HITL)** capabilities for critical decision points, ensuring user control over data transformations and model training:
+
+### Preprocessing Confirmation
+
+When data preprocessing is recommended, the system **pauses execution** and presents recommendations to the user:
+
+```
+Query: "Build a model to predict customer lifetime value"
+    ↓
+Profiling Agent: Detects data quality issues
+    ↓
+Preprocessing Agent: Generates recommendations
+    ↓
+⏸️  PAUSE: Show user preprocessing dialog
+    ├─ ☑️ Encode categorical variables
+    ├─ ☑️ Fill missing values
+    ├─ ☑️ Scale features
+    ├─ ☑️ Transform skewed distributions
+    └─ ☑️ Handle outliers
+    ↓
+User selects desired transformations
+    ↓
+Apply selected preprocessing
+    ↓
+Continue to modeling
+```
+
+**Modes**:
+- **Confirm** (default): Pause and ask user approval
+- **Auto**: Apply all recommendations automatically
+- **Manual**: Skip preprocessing unless explicitly requested
+
+### Benefits of HITL
+
+1. **Transparency**: Users see exactly what transformations are applied
+2. **Control**: Users can exclude transformations they don't want
+3. **Trust**: Builds confidence in the ML pipeline
+4. **Learning**: Users understand data quality issues
+5. **Compliance**: Meets regulatory requirements for human oversight
+
+### Implementation
+
+The Communication Agent detects `needs_preprocessing_confirmation` and sets `final_response = None`, signaling the UI to display the confirmation dialog instead of a text response. The orchestrator resumes execution after user approval.
 
 ## Security Architecture
 

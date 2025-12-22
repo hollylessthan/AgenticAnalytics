@@ -1,0 +1,178 @@
+# Classification Model Method Cards
+
+- method_name: "LogisticRegression"
+  category: "model_classification"
+  problem_type: "binary_classification"
+  data_conditions:
+    sample_size_min: 50
+    sample_size_max: null
+    sample_size_recommended: 500
+    normality_required: false
+    handles_non_normal: true
+    handles_missing: false
+    requires_complete_data: true
+    handles_categorical: false
+    requires_numeric: true
+    supports_binary_target: true
+    supports_multiclass_target: true
+    supports_continuous_target: false
+    requires_independence: true
+    handles_outliers: false
+    requires_balanced_classes: false
+  assumptions:
+    - "Linear relationship between features and log-odds"
+    - "Independence of observations"
+    - "No multicollinearity among features"
+  when_to_use: "Good baseline for binary or multiclass classification. Fast training and prediction. Interpretable coefficients show feature importance. Works well with 100s-1000s of samples. Prefer when you need probability estimates or model interpretability."
+  when_not_to_use: "Non-linear decision boundaries. Very high-dimensional data (>10k features). Highly imbalanced classes without adjustment. Data with strong feature interactions."
+  alternatives: ["RandomForestClassifier", "GradientBoostingClassifier", "SVC", "KNeighborsClassifier"]
+  code_example: |
+    from sklearn.linear_model import LogisticRegression
+    model = LogisticRegression(max_iter=1000, random_state=42)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    y_proba = model.predict_proba(X_test)
+  parameters:
+    penalty: "Regularization type ('l1', 'l2', 'elasticnet', 'none')"
+    C: "Inverse regularization strength (smaller = stronger)"
+    max_iter: "Maximum iterations for solver convergence"
+    solver: "Algorithm ('lbfgs', 'liblinear', 'newton-cg', 'sag', 'saga')"
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  library_version: "1.8.0"
+  supporting_excerpt: "Logistic regression is a linear model for classification rather than regression. It estimates probabilities using the logistic function, which is the cumulative distribution function of logistic distribution."
+  last_updated: "2025-12-21"
+  confidence: 1.0
+
+- method_name: "RandomForestClassifier"
+  category: "model_classification"
+  problem_type: "multiclass_classification"
+  data_conditions:
+    sample_size_min: 100
+    sample_size_max: null
+    sample_size_recommended: 1000
+    normality_required: false
+    handles_non_normal: true
+    handles_missing: false
+    requires_complete_data: true
+    handles_categorical: false
+    requires_numeric: true
+    supports_binary_target: true
+    supports_multiclass_target: true
+    supports_continuous_target: false
+    requires_independence: true
+    handles_outliers: true
+    requires_balanced_classes: false
+  assumptions:
+    - "Independence of samples"
+  when_to_use: "Non-linear relationships. Feature interactions. Robust to outliers and noise. Don't need interpretability. Medium-large datasets (100s-100k samples). Works well out-of-the-box with minimal tuning."
+  when_not_to_use: "Need interpretability of individual predictions. Very large datasets (>100k samples) with time constraints. Real-time prediction latency requirements (<1ms). Very high cardinality categorical features."
+  alternatives: ["GradientBoostingClassifier", "XGBClassifier", "LogisticRegression", "SVC"]
+  code_example: |
+    from sklearn.ensemble import RandomForestClassifier
+    model = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    feature_importance = model.feature_importances_
+  parameters:
+    n_estimators: "Number of trees (typically 100-500)"
+    max_depth: "Maximum tree depth (controls overfitting)"
+    min_samples_split: "Minimum samples to split node"
+    min_samples_leaf: "Minimum samples in leaf node"
+    max_features: "Features to consider for splits ('sqrt', 'log2', int)"
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  library_version: "1.8.0"
+  supporting_excerpt: "A random forest is a meta estimator that fits a number of decision tree classifiers on various sub-samples of the dataset and uses averaging to improve the predictive accuracy and control over-fitting."
+  last_updated: "2025-12-21"
+  confidence: 1.0
+
+- method_name: "GradientBoostingClassifier"
+  category: "model_classification"
+  problem_type: "binary_classification"
+  data_conditions:
+    sample_size_min: 200
+    sample_size_max: 100000
+    sample_size_recommended: 5000
+    normality_required: false
+    handles_non_normal: true
+    handles_missing: false
+    requires_complete_data: true
+    handles_categorical: false
+    requires_numeric: true
+    supports_binary_target: true
+    supports_multiclass_target: true
+    supports_continuous_target: false
+    requires_independence: true
+    handles_outliers: false
+    requires_balanced_classes: false
+  assumptions:
+    - "Independence of samples"
+  when_to_use: "High accuracy needed. Non-linear patterns. Feature interactions. Willing to tune hyperparameters. Medium datasets (1k-50k samples). Can accept longer training time for better accuracy."
+  when_not_to_use: "Need fast training. Very large datasets (>100k) - use XGBoost instead. Need model interpretability. Real-time constraints. Prone to overfitting on small datasets."
+  alternatives: ["XGBClassifier", "LGBMClassifier", "RandomForestClassifier", "CatBoostClassifier"]
+  code_example: |
+    from sklearn.ensemble import GradientBoostingClassifier
+    model = GradientBoostingClassifier(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+  parameters:
+    n_estimators: "Number of boosting stages (50-500)"
+    learning_rate: "Shrinks contribution of each tree (0.01-0.3)"
+    max_depth: "Maximum tree depth (3-10)"
+    subsample: "Fraction of samples for fitting trees (0.5-1.0)"
+    min_samples_split: "Minimum samples to split node"
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.GradientBoostingClassifier.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  library_version: "1.8.0"
+  supporting_excerpt: "Gradient Boosting builds an additive model in a forward stage-wise fashion; it allows for the optimization of arbitrary differentiable loss functions."
+  last_updated: "2025-12-21"
+  confidence: 1.0
+
+- method_name: "SVC"
+  category: "model_classification"
+  problem_type: "binary_classification"
+  data_conditions:
+    sample_size_min: 100
+    sample_size_max: 10000
+    sample_size_recommended: 2000
+    normality_required: false
+    handles_non_normal: true
+    handles_missing: false
+    requires_complete_data: true
+    handles_categorical: false
+    requires_numeric: true
+    supports_binary_target: true
+    supports_multiclass_target: true
+    supports_continuous_target: false
+    requires_independence: true
+    handles_outliers: false
+    requires_balanced_classes: false
+  assumptions:
+    - "Features should be scaled (mean=0, std=1)"
+    - "Independence of observations"
+  when_to_use: "Small-medium datasets (<10k samples). High-dimensional data. Non-linear decision boundaries with kernel trick. Need maximum-margin classifier. Data is scaled."
+  when_not_to_use: "Large datasets (>10k samples) - training time O(n²) to O(n³). Need probability estimates (requires calibration). Highly imbalanced classes. Features not scaled."
+  alternatives: ["LogisticRegression", "RandomForestClassifier", "KNeighborsClassifier"]
+  code_example: |
+    from sklearn.svm import SVC
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    model = SVC(kernel='rbf', C=1.0, gamma='scale', random_state=42)
+    model.fit(X_train_scaled, y_train)
+  parameters:
+    kernel: "Kernel type ('linear', 'poly', 'rbf', 'sigmoid')"
+    C: "Regularization parameter (smaller = more regularization)"
+    gamma: "Kernel coefficient ('scale', 'auto', or float)"
+    degree: "Degree for polynomial kernel"
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  library_version: "1.8.0"
+  supporting_excerpt: "Support vector machines (SVMs) are a set of supervised learning methods used for classification, regression and outliers detection. The advantages of support vector machines are effective in high dimensional spaces."
+  last_updated: "2025-12-21"
+  confidence: 1.0

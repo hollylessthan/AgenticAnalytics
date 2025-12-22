@@ -150,7 +150,7 @@ def display_chat_message(role: str, content: str, result=None, message=None):
         # Show DataFrame inline
         if result.query_results is not None and isinstance(result.query_results, pd.DataFrame):
             with st.expander(f"📊 Data Preview ({len(result.query_results)} rows)", expanded=False):
-                st.dataframe(result.query_results, use_container_width=True)
+                st.dataframe(result.query_results, width='stretch')
                 
                 # Action buttons row
                 col1, col2, col3, col4 = st.columns(4)
@@ -203,22 +203,34 @@ def display_chat_message(role: str, content: str, result=None, message=None):
                     )
         
         # Show generated code in expandable sections
-        col1, col2, col3 = st.columns(3)
+        code_sections = []
         
-        # SQL Query
         if result.sql_query:
-            with col1.expander("🔍 SQL Query", expanded=False):
-                st.code(result.sql_query, language="sql")
-        
-        # Analysis Code
+            code_sections.append(("🔍 SQL Query", result.sql_query, "sql"))
+        if result.profiling_code:
+            code_sections.append(("📋 Profiling Code", result.profiling_code, "python"))
+        if result.preprocessing_code:
+            code_sections.append(("🔧 Preprocessing Code", result.preprocessing_code, "python"))
         if result.analysis_code:
-            with col2.expander("📊 Analysis Code", expanded=False):
-                st.code(result.analysis_code, language="python")
-        
-        # Visualization Code
+            code_sections.append(("📊 Analysis Code", result.analysis_code, "python"))
+        if result.modeling_code:
+            code_sections.append(("🤖 Modeling Code", result.modeling_code, "python"))
         if result.visualization_code:
-            with col3.expander("📈 Viz Code", expanded=False):
-                st.code(result.visualization_code, language="python")
+            code_sections.append(("📈 Viz Code", result.visualization_code, "python"))
+        
+        # Display code sections dynamically based on what's available
+        if code_sections:
+            num_sections = len(code_sections)
+            if num_sections <= 3:
+                cols = st.columns(num_sections)
+            else:
+                # If more than 3, use 3 columns and wrap
+                cols = st.columns(3)
+            
+            for i, (title, code, lang) in enumerate(code_sections):
+                col_idx = i % 3 if num_sections > 3 else i
+                with cols[col_idx].expander(title, expanded=False):
+                    st.code(code, language=lang)
 
 
 def main():
@@ -292,6 +304,34 @@ def main():
             # Force reinitialize orchestrator with new settings
             st.session_state.orchestrator = None
             st.info("Settings updated. Orchestrator will reinitialize on next query.")
+        
+        st.divider()
+        
+        # Preprocessing Configuration (NEW)
+        st.subheader("🔧 Data Preprocessing")
+        
+        preprocessing_mode = st.radio(
+            "Preprocessing Mode",
+            options=["confirm", "auto", "manual"],
+            index=0 if st.session_state.get("preprocessing_mode", "confirm") == "confirm" else 
+                  (1 if st.session_state.get("preprocessing_mode", "confirm") == "auto" else 2),
+            help="""
+            • **Confirm** (Recommended): Ask before applying preprocessing steps
+            • **Auto**: Automatically apply safe preprocessing for modeling
+            • **Manual**: No preprocessing unless explicitly requested
+            """
+        )
+        
+        if preprocessing_mode == "confirm":
+            st.info("✓ Will ask for confirmation before preprocessing")
+        elif preprocessing_mode == "auto":
+            st.warning("⚡ Auto-applying preprocessing for modeling tasks")
+        else:
+            st.info("📝 Manual mode - no automatic preprocessing")
+        
+        # Update session state
+        if st.session_state.get("preprocessing_mode") != preprocessing_mode:
+            st.session_state.preprocessing_mode = preprocessing_mode
         
         st.divider()
         
@@ -438,6 +478,198 @@ def main():
     # Chat input
     user_input = st.chat_input("Ask me anything about your data...")
     
+    # Check if we need preprocessing reuse confirmation (NEW)
+    if hasattr(st.session_state, 'previous_state') and st.session_state.previous_state:
+        state = st.session_state.previous_state
+        
+        # Handle preprocessing reuse confirmation
+        if (hasattr(state, 'needs_preprocessing_confirmation') and 
+            state.needs_preprocessing_confirmation and 
+            hasattr(state, 'preprocessing_reuse_prompt') and
+            state.preprocessing_reuse_prompt):
+            
+            # Display the preprocessing reuse prompt (formatted message from agent)
+            st.info(state.preprocessing_reuse_prompt)
+            
+            # Buttons to proceed or reprocess
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("✅ Use Existing Preprocessed Data", type="primary", key="reuse_preproc"):
+                    # Approve reuse - continue to modeling
+                    state.needs_preprocessing_confirmation = False
+                    state.preprocessing_reuse_approved = True
+                    st.session_state.previous_state = state
+                    st.rerun()
+            
+            with col2:
+                if st.button("🔄 Reprocess from Scratch", key="reprocess"):
+                    # Reject reuse - clear cached preprocessing
+                    state.needs_preprocessing_confirmation = False
+                    state.preprocessing_reuse_approved = False
+                    state.preprocessed_dataframe = None
+                    state.preprocessing_applied = []
+                    st.session_state.previous_state = state
+                    st.rerun()
+            
+            # Don't process new input while waiting for confirmation
+            return
+        
+        # Handle preprocessing reuse confirmation (NEW: for cached preprocessing data)
+        if (hasattr(state, 'needs_preprocessing_confirmation') and 
+            state.needs_preprocessing_confirmation and
+            hasattr(state, 'preprocessing_reuse_prompt') and
+            state.preprocessing_reuse_prompt):
+            
+            # Show the preprocessing reuse prompt (shows transformations + data preview)
+            st.warning("🔧 **Preprocessed Data Available**")
+            st.markdown(state.preprocessing_reuse_prompt)
+            
+            # Buttons to reuse or reprocess
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("✅ Use Existing Preprocessed Data", type="primary"):
+                    # Continue with existing preprocessing
+                    state.needs_preprocessing_confirmation = False
+                    state.preprocessing_approved = True  # Signal to continue
+                    st.session_state.previous_state = state
+                    st.rerun()
+            
+            with col2:
+                if st.button("🔄 Reprocess from Scratch"):
+                    # Clear preprocessing and rerun
+                    state.preprocessed_dataframe = None
+                    state.preprocessing_applied = []
+                    state.data_profile = None
+                    state.needs_preprocessing_confirmation = False
+                    st.session_state.previous_state = state
+                    st.rerun()
+            
+            # Don't process new input while waiting for confirmation
+            return
+        
+        # Handle preprocessing confirmation (persists across reruns via session state)
+        if hasattr(st.session_state, 'pending_preprocessing') and st.session_state.pending_preprocessing:
+            state = st.session_state.previous_state
+            
+            if (hasattr(state, 'needs_preprocessing_confirmation') and 
+                state.needs_preprocessing_confirmation and 
+                hasattr(state, 'preprocessing_needed') and
+                state.preprocessing_needed):
+                
+                # Show preprocessing confirmation dialog
+                st.warning("**Data Preprocessing Recommended**")
+                st.write("The following preprocessing steps are recommended for better analysis:")
+                
+                # Show data preview
+                data_source = None
+                if hasattr(state, 'preprocessed_dataframe') and state.preprocessed_dataframe is not None:
+                    data_source = state.preprocessed_dataframe
+                elif hasattr(state, 'query_results') and state.query_results is not None:
+                    data_source = state.query_results
+                elif hasattr(state, 'cached_dataframe') and state.cached_dataframe is not None:
+                    data_source = state.cached_dataframe
+                
+                if data_source is not None:
+                    import pandas as pd
+                    if isinstance(data_source, pd.DataFrame):
+                        df = data_source
+                    else:
+                        df = pd.DataFrame(data_source)
+                    
+                    st.write(f"**Data Preview** ({len(df)} rows, {len(df.columns)} columns)")
+                    st.dataframe(df.head(10), use_container_width=True)
+                
+                recommendations = state.preprocessing_needed.get("recommendations", [])
+                
+                # Show summary
+                if recommendations:
+                    st.info(f"**{len(recommendations)} preprocessing steps recommended**")
+                
+                # Allow user to select which preprocessing steps to apply
+                st.write("**Select preprocessing steps to apply:**")
+                selected_actions = []
+                
+                for idx, rec in enumerate(recommendations):
+                    action = rec["action"]
+                    reason = rec["reason"]
+                    suggestion = rec["suggestion"]
+                    impact = rec["impact"]
+                    details = rec.get("details", "")
+                    
+                    # Create checkbox with expandable details
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        label = f"**{action.replace('_', ' ').title()}** - {reason}"
+                        is_selected = st.checkbox(label, value=True, key=f"prep_{action}_{idx}")
+                        if is_selected:
+                            selected_actions.append(action)
+                    
+                    with col2:
+                        with st.expander("Details"):
+                            st.write(f"**Suggestion:** {suggestion}")
+                            st.write(f"**Impact:** {impact}")
+                            if details:
+                                st.write(f"**Details:** {details}")
+                
+                # Store selected actions in session state for persistence
+                st.session_state.selected_preprocessing_actions = selected_actions
+                
+                # Buttons to proceed or cancel
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Apply Selected Preprocessing", type="primary"):
+                        # Get the selected actions from session state
+                        approved_actions = st.session_state.get('selected_preprocessing_actions', [])
+                        
+                        # Update state with approved preprocessing
+                        state.preprocessing_approved = approved_actions
+                        state.needs_preprocessing_confirmation = False
+                        st.session_state.pending_preprocessing = False
+                        
+                        print(f"[DEBUG] Approved preprocessing actions: {approved_actions}")
+                        
+                        # Continue execution by re-running orchestrator
+                        try:
+                            # Continue from where we left off
+                            result = st.session_state.orchestrator.run(
+                                state.query,
+                                st.session_state.get('conversation_history', []),
+                                previous_state=state
+                            )
+                            
+                            # Add response to messages
+                            response = result.final_answer or result.final_response or "Preprocessing applied successfully."
+                            st.session_state.messages.append({
+                                "role": "assistant",
+                                "content": response,
+                                "result": result
+                            })
+                            
+                            # Store results
+                            st.session_state.last_result = result
+                            st.session_state.previous_state = result
+                            
+                            # Clean up
+                            del st.session_state.selected_preprocessing_actions
+                            
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error continuing after preprocessing: {e}")
+                            st.session_state.pending_preprocessing = False
+                            return
+                
+                with col2:
+                    if st.button("Skip Preprocessing"):
+                        # Skip all preprocessing
+                        state.preprocessing_approved = []
+                        state.needs_preprocessing_confirmation = False
+                        st.session_state.pending_preprocessing = False
+                        st.session_state.previous_state = state
+                        st.rerun()
+                
+                # Don't process new input while waiting for confirmation
+                return
+    
     if user_input:
         # Add user message
         st.session_state.messages.append({"role": "user", "content": user_input})
@@ -503,9 +735,15 @@ def main():
             
             # Run orchestrator with stateful conversation support
             previous_state = getattr(st.session_state, 'previous_state', None)
+            
+            # Get preprocessing mode from session state
+            preprocessing_mode = st.session_state.get('preprocessing_mode', 'confirm')
+            
             if previous_state:
                 # Preserve metadata across turns
                 previous_state.metadata.update(metadata)
+                # Update preprocessing mode
+                previous_state.preprocessing_mode = preprocessing_mode
                 result = st.session_state.orchestrator.run(
                     user_input,
                     conversation_history,
@@ -514,7 +752,11 @@ def main():
             else:
                 # First query - create new state with metadata
                 from src.agents.base import AgentState
-                initial_state = AgentState(query=user_input, metadata=metadata)
+                initial_state = AgentState(
+                    query=user_input, 
+                    metadata=metadata,
+                    preprocessing_mode=preprocessing_mode
+                )
                 result = st.session_state.orchestrator.run(
                     user_input,
                     conversation_history,
@@ -527,24 +769,59 @@ def main():
             # Add to conversation snapshot history
             result.add_snapshot()
             
-            # Add assistant response with result metadata
-            # Check both final_answer and final_response for backward compatibility
-            response = result.final_answer or result.final_response or "I couldn't process your request."
+            # DEBUG: Check preprocessing confirmation state
+            print(f"[DEBUG] needs_preprocessing_confirmation: {getattr(result, 'needs_preprocessing_confirmation', False)}")
+            print(f"[DEBUG] preprocessing_needed exists: {hasattr(result, 'preprocessing_needed')}")
+            print(f"[DEBUG] preprocessing_approved: {getattr(result, 'preprocessing_approved', None)}")
             
-            # Check for agent-specific errors
-            if result.errors and len(result.errors) > 0:
-                # Show agent errors as warnings
-                for error in result.errors:
-                    st.warning(error)
-                # Still show the response if available
-                if response != "I couldn't process your request.":
-                    st.info(f"Response: {response}")
+            # CHECK FOR PREPROCESSING CONFIRMATION BEFORE DISPLAYING RESULT
+            # Handle preprocessing confirmation (fresh preprocessing, not reuse)
+            if (hasattr(result, 'needs_preprocessing_confirmation') and 
+                result.needs_preprocessing_confirmation and 
+                hasattr(result, 'preprocessing_needed') and
+                result.preprocessing_needed):
+                
+                # Only show dialog if not already approved (None or empty list)
+                preprocessing_approved = getattr(result, 'preprocessing_approved', None)
+                if not preprocessing_approved:  # Handles None, [], or False
+                    print("[DEBUG] Showing preprocessing confirmation dialog")
+                    
+                    # Store result for later use (CRITICAL: must persist across reruns)
+                    st.session_state.previous_state = result
+                    st.session_state.pending_preprocessing = True
+                    
+                    # Don't add message to history while waiting for confirmation
+                    # The dialog will be shown below
+            
+            # Store results for display
+            st.session_state.last_result = result
+            if not hasattr(st.session_state, 'pending_preprocessing') or not st.session_state.pending_preprocessing:
+                st.session_state.previous_state = result  # For stateful conversation (includes full state_history)
+            
+            # Add assistant response with result metadata
+            # Don't show error message when preprocessing confirmation is pending
+            if hasattr(result, 'needs_preprocessing_confirmation') and result.needs_preprocessing_confirmation:
+                # Preprocessing confirmation is pending - don't add any message
+                pass
             else:
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": response,
-                    "result": result  # Store full result for inline display
-                })
+                # Check both final_answer and final_response for backward compatibility
+                response = result.final_answer or result.final_response or "I couldn't process your request."
+                
+                # Check for agent-specific errors
+                if result.errors and len(result.errors) > 0:
+                    # Show agent errors as warnings
+                    for error in result.errors:
+                        error_text = str(error) if not isinstance(error, str) else error
+                        st.warning(error_text)
+                    # Still show the response if available
+                    if response != "I couldn't process your request.":
+                        st.info(f"Response: {response}")
+                else:
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": response,
+                        "result": result  # Store full result for inline display
+                    })
             
             # Store results for display
             st.session_state.last_result = result

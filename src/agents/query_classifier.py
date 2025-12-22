@@ -26,6 +26,9 @@ class PlanType(str, Enum):
     SQL_ANALYSIS = "sql_analysis"  # SQL + statistical analysis
     SQL_VIZ = "sql_viz"  # SQL + visualization
     SQL_ANALYSIS_VIZ = "sql_analysis_viz"  # SQL + analysis + visualization
+    SQL_PROFILING = "sql_profiling"  # SQL + data profiling/EDA
+    SQL_PREPROCESSING = "sql_preprocessing"  # SQL + profiling + preprocessing
+    SQL_MODELING = "sql_modeling"  # SQL + profiling + preprocessing + modeling
 
 
 class QueryPlan(BaseModel):
@@ -89,6 +92,37 @@ class QueryClassifier:
         r'\bwhat\s+(does\s+this\s+mean|can\s+you\s+tell\s+me|insights?)\b',
     ]
     
+    # Patterns for data profiling / EDA (exploratory data analysis)
+    PROFILING_PATTERNS = [
+        r'\b(profil(e|ing)|EDA|exploratory\s+data\s+analysis|data\s+exploration?)\b',
+        r'\b(explore|inspect|examine|understand)\s+(the\s+)?(data|dataset)\b',
+        r'\b(data\s+quality|missing\s+values?|null\s+values?|duplicates?)\b',
+        r'\b(summary\s+statistics|descriptive\s+statistics|data\s+overview)\b',
+        r'\b(check|assess|review)\s+(data|dataset|quality)\b',
+    ]
+    
+    # Patterns for preprocessing / feature engineering
+    PREPROCESSING_PATTERNS = [
+        r'\b(preprocess(ing)?|feature\s+engineering|transformation|transform)\b',
+        r'\b(clean(ing)?|prepare|preparation)\s+(the\s+)?(data|dataset)\b',
+        r'\b(encod(e|ing)|scaling|normali[sz]ation|standardi[sz]ation)\b',
+        r'\b(handle|impute|fill)\s+(missing|null)\s+(values?|data)\b',
+        r'\b(remove|drop)\s+(duplicates?|outliers?|missing\s+values?)\b',
+        r'\b(create|engineer|generate)\s+(features?|variables?)\b',
+    ]
+    
+    # Patterns for predictive modeling / machine learning
+    MODELING_PATTERNS = [
+        r'\b(build|train|create|fit)\s+(a\s+)?(model|classifier|regressor)\b',
+        r'\b(predict|forecast|estimate)\s+',
+        r'\b(machine\s+learning|ML|predictive\s+model(ing)?)\b',
+        r'\b(random\s+forest|decision\s+tree|logistic\s+regression|linear\s+regression)\b',
+        r'\b(xgboost|gradient\s+boosting|neural\s+network|deep\s+learning)\b',
+        r'\b(classification|regression|clustering)\s+(model|task|problem)\b',
+        r'\b(churn|fraud|recommendation)\s+(prediction|model|detection)\b',
+        r'\b(model\s+performance|model\s+evaluation|cross[-\s]validation)\b',
+    ]
+    
     # Keywords with weights for Tier 2 scoring
     KEYWORD_WEIGHTS = {
         # SQL-only indicators (high weight)
@@ -103,6 +137,24 @@ class QueryClassifier:
         'analyze': 0.8, 'analysis': 0.8, 'statistics': 0.7, 'statistical': 0.7,
         'correlation': 0.75, 'pattern': 0.6, 'insight': 0.7, 'compare': 0.6,
         'mean': 0.5, 'median': 0.5, 'variance': 0.6, 'anomaly': 0.7,
+        
+        # Profiling / EDA indicators
+        'profile': 0.85, 'profiling': 0.85, 'eda': 0.9, 'exploratory': 0.8,
+        'explore': 0.75, 'exploration': 0.8, 'inspect': 0.7, 'examine': 0.7,
+        'quality': 0.65, 'overview': 0.6, 'summary': 0.5, 'descriptive': 0.6,
+        
+        # Preprocessing / Feature Engineering indicators
+        'preprocess': 0.85, 'preprocessing': 0.85, 'feature': 0.75, 'engineering': 0.75,
+        'transformation': 0.8, 'transform': 0.8, 'clean': 0.7, 'cleaning': 0.7,
+        'prepare': 0.7, 'preparation': 0.7, 'encode': 0.75, 'encoding': 0.75,
+        'scaling': 0.75, 'normalization': 0.75, 'standardization': 0.75,
+        'impute': 0.8, 'imputation': 0.8,
+        
+        # Modeling / ML indicators
+        'predict': 0.9, 'prediction': 0.9, 'forecast': 0.85, 'model': 0.8,
+        'train': 0.75, 'build': 0.6, 'classify': 0.85, 'classification': 0.85,
+        'regression': 0.85, 'clustering': 0.85, 'machine': 0.7, 'learning': 0.7,
+        'churn': 0.8, 'fraud': 0.8, 'recommendation': 0.75,
     }
     
     def __init__(self, config: Config):
@@ -115,6 +167,9 @@ class QueryClassifier:
             'metadata': [re.compile(p, re.IGNORECASE) for p in self.METADATA_PATTERNS],
             'viz': [re.compile(p, re.IGNORECASE) for p in self.VIZ_PATTERNS],
             'analysis': [re.compile(p, re.IGNORECASE) for p in self.ANALYSIS_PATTERNS],
+            'profiling': [re.compile(p, re.IGNORECASE) for p in self.PROFILING_PATTERNS],
+            'preprocessing': [re.compile(p, re.IGNORECASE) for p in self.PREPROCESSING_PATTERNS],
+            'modeling': [re.compile(p, re.IGNORECASE) for p in self.MODELING_PATTERNS],
         }
     
     def is_followup_query(self, query: str) -> bool:
@@ -207,11 +262,24 @@ class QueryClassifier:
             if pattern.search(query):
                 return (PlanType.SQL_ONLY, 1.0)
         
-        # Check for visualization + analysis patterns
+        # Check for different analysis types
         has_viz = any(p.search(query) for p in self._compiled_patterns['viz'])
         has_analysis = any(p.search(query) for p in self._compiled_patterns['analysis'])
+        has_profiling = any(p.search(query) for p in self._compiled_patterns['profiling'])
+        has_preprocessing = any(p.search(query) for p in self._compiled_patterns['preprocessing'])
+        has_modeling = any(p.search(query) for p in self._compiled_patterns['modeling'])
         
-        if has_viz and has_analysis:
+        # Determine plan based on what's detected (priority order: modeling > preprocessing > profiling)
+        if has_modeling:
+            # Modeling requires full pipeline: SQL → profiling → preprocessing → modeling
+            return (PlanType.SQL_MODELING, 0.95)
+        elif has_preprocessing:
+            # Preprocessing requires: SQL → profiling → preprocessing
+            return (PlanType.SQL_PREPROCESSING, 0.95)
+        elif has_profiling:
+            # Profiling requires: SQL → profiling
+            return (PlanType.SQL_PROFILING, 0.95)
+        elif has_viz and has_analysis:
             return (PlanType.SQL_ANALYSIS_VIZ, 0.95)
         elif has_viz:
             return (PlanType.SQL_VIZ, 0.95)
@@ -232,21 +300,46 @@ class QueryClassifier:
         viz_score = 0.0
         analysis_score = 0.0
         metadata_score = 0.0
+        profiling_score = 0.0
+        preprocessing_score = 0.0
+        modeling_score = 0.0
         
         for word in words:
             if word in self.KEYWORD_WEIGHTS:
                 weight = self.KEYWORD_WEIGHTS[word]
                 
-                # Categorize keyword
+                # Categorize keyword by type
                 if word in ['plot', 'chart', 'graph', 'visualize', 'trend', 'distribution', 'histogram']:
                     viz_score += weight
+                elif word in ['predict', 'prediction', 'forecast', 'model', 'train', 'build', 
+                              'classify', 'classification', 'regression', 'clustering', 'machine', 
+                              'learning', 'churn', 'fraud', 'recommendation']:
+                    modeling_score += weight
+                elif word in ['preprocess', 'preprocessing', 'feature', 'engineering', 'transformation',
+                              'transform', 'clean', 'cleaning', 'prepare', 'preparation', 'encode',
+                              'encoding', 'scaling', 'normalization', 'standardization', 'impute', 'imputation']:
+                    preprocessing_score += weight
+                elif word in ['profile', 'profiling', 'eda', 'exploratory', 'explore', 'exploration',
+                              'inspect', 'examine', 'quality', 'overview', 'summary', 'descriptive']:
+                    profiling_score += weight
                 elif word in ['analyze', 'analysis', 'statistics', 'statistical', 'correlation', 
                               'pattern', 'insight', 'compare', 'mean', 'median', 'variance', 'anomaly']:
                     analysis_score += weight
                 elif word in ['show', 'list', 'display', 'get', 'table', 'schema', 'column', 'describe']:
                     metadata_score += weight
         
-        # Normalize scores
+        # Determine plan type based on highest scores (with threshold)
+        threshold = 0.85
+        
+        # Priority: modeling > preprocessing > profiling > viz+analysis > viz > analysis > metadata
+        if modeling_score > 1.0:  # Modeling keywords have high weights (0.75-0.9)
+            return (PlanType.SQL_MODELING, min(0.95, modeling_score / 2.0))
+        elif preprocessing_score > 1.0:
+            return (PlanType.SQL_PREPROCESSING, min(0.95, preprocessing_score / 2.0))
+        elif profiling_score > 1.0:
+            return (PlanType.SQL_PROFILING, min(0.95, profiling_score / 2.0))
+        
+        # Legacy scoring for viz/analysis combinations
         total_score = viz_score + analysis_score + metadata_score
         if total_score == 0:
             return None
@@ -254,9 +347,6 @@ class QueryClassifier:
         viz_confidence = viz_score / total_score
         analysis_confidence = analysis_score / total_score
         metadata_confidence = metadata_score / total_score
-        
-        # Determine plan type based on scores
-        threshold = 0.85
         
         if metadata_confidence > threshold:
             return (PlanType.SQL_ONLY, metadata_confidence)
@@ -295,8 +385,20 @@ Plan Types:
 - sql_analysis: Queries needing statistical analysis, insights, patterns, comparisons
 - sql_viz: Queries needing visual output (charts, graphs, plots)
 - sql_analysis_viz: Queries needing both analysis and visualization
+- sql_profiling: Data quality checks, profiling, data assessment (runs profiling → communication)
+- sql_preprocessing: Data cleaning, transformation, feature engineering (runs profiling → preprocessing → communication)
+- sql_modeling: Predictive modeling, machine learning tasks (runs profiling → preprocessing → modeling → communication)
+
+Priority Rules:
+1. If query involves ML/prediction/classification → sql_modeling
+2. If query involves data transformation/cleaning/feature engineering → sql_preprocessing
+3. If query involves data quality assessment/profiling → sql_profiling
+4. Otherwise use original plan types (sql_only, sql_analysis, sql_viz, sql_analysis_viz)
 
 Consider:
+- ML keywords: predict, forecast, classify, train, model → sql_modeling
+- Preprocessing keywords: clean, transform, encode, scale, impute → sql_preprocessing
+- Profiling keywords: data quality, assess data, check issues → sql_profiling
 - Explicit requests (e.g., "show me a chart" → sql_viz)
 - Implicit needs (e.g., "compare trends" → sql_analysis_viz)
 - Simple lookups (e.g., "list tables" → sql_only)

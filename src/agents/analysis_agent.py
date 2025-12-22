@@ -2,7 +2,7 @@
 
 import pandas as pd
 import traceback
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from langchain_core.prompts import ChatPromptTemplate
 
 from src.agents.base import BaseAgent, AgentState
@@ -25,6 +25,15 @@ class AnalysisAgent(BaseAgent):
             description="Performs statistical and analytical operations on data"
         )
         self.llm = get_llm()
+        
+        # Initialize RAG system for method selection
+        try:
+            from src.rag.rag_system import RAGSystem
+            self.rag_system = RAGSystem(config)
+            print("[AnalysisAgent] RAG system initialized for analysis method selection")
+        except Exception as e:
+            print(f"[AnalysisAgent] RAG system not available: {e}")
+            self.rag_system = None
     
     def execute(self, state: AgentState) -> AgentState:
         """Execute data analysis.
@@ -44,9 +53,12 @@ class AnalysisAgent(BaseAgent):
             # Add to agent chain
             state.agent_chain.append("analysis_agent")
             
-            # Get data source - check both query_results and cached_dataframe
+            # Get data source - prefer preprocessed data if available
             data_source = None
-            if state.query_results is not None:
+            if state.preprocessed_dataframe is not None:
+                data_source = state.preprocessed_dataframe
+                print("[AnalysisAgent] Using preprocessed dataframe")
+            elif state.query_results is not None:
                 data_source = state.query_results
             elif state.cached_dataframe is not None:
                 data_source = state.cached_dataframe
@@ -64,10 +76,23 @@ class AnalysisAgent(BaseAgent):
             analysis_results = None
             max_code_retries = 3
             
+            # RAG-powered analysis method selection
+            selected_methods = []
+            if self.rag_system and state.data_profile:
+                try:
+                    selected_methods = self._rag_select_analysis_methods(state.query, state.data_profile, df)
+                    if selected_methods:
+                        print(f"[AnalysisAgent] RAG selected {len(selected_methods)} analysis methods")
+                except Exception as e:
+                    print(f"[AnalysisAgent] RAG method selection failed: {e}, using LLM fallback")
+            
             for attempt in range(max_code_retries):
                 if attempt == 0:
-                    # First attempt: generate fresh code
-                    analysis_code = self._generate_analysis_code(state.query, df)
+                    # First attempt: generate fresh code with RAG guidance
+                    analysis_code = self._generate_analysis_code(
+                        state.query, df, state, 
+                        rag_methods=selected_methods
+                    )
                 else:
                     # Subsequent attempts: regenerate code based on previous error
                     error_info = analysis_results.get('error', '')
@@ -114,12 +139,20 @@ class AnalysisAgent(BaseAgent):
         else:
             return pd.DataFrame([data])
     
-    def _generate_analysis_code(self, user_query: str, df: pd.DataFrame) -> str:
-        """Generate Python analysis code.
+    def _generate_analysis_code(
+        self, 
+        user_query: str, 
+        df: pd.DataFrame, 
+        state: Optional[AgentState] = None,
+        rag_methods: Optional[List[Dict[str, Any]]] = None
+    ) -> str:
+        """Generate Python analysis code with optional RAG method guidance.
         
         Args:
             user_query: User's query
             df: DataFrame to analyze
+            state: Optional agent state with preprocessing info
+            rag_methods: Optional RAG-selected method cards
             
         Returns:
             Python code string
@@ -128,6 +161,35 @@ class AnalysisAgent(BaseAgent):
         df_info = f"Shape: {df.shape}\nColumns: {list(df.columns)}\nDtypes:\n{df.dtypes.to_dict()}"
         sample_data = df.head().to_dict()
         
+        # Get distribution info if available (from PreprocessingAgent)
+        distribution_guidance = ""
+        if state and state.preprocessing_needed:
+            needs = state.preprocessing_needed.get("needs", {})
+            recommended_corr = needs.get("recommended_correlation", "pearson")
+            non_normal = needs.get("non_normal_features", [])
+            
+            if non_normal:
+                distribution_guidance = f"""
+IMPORTANT DISTRIBUTION NOTES:
+- Non-normal features detected: {non_normal[:5]}
+- Recommended correlation method: {recommended_corr}
+- For correlation analysis, use: df.corr(method='{recommended_corr}')
+- For statistical tests with non-normal data, use non-parametric alternatives
+"""
+        
+        # Build RAG method guidance
+        rag_guidance = ""
+        if rag_methods:
+            rag_guidance = "\nRECOMMENDED METHODS FROM RAG:\n"
+            for method_info in rag_methods[:3]:  # Limit to top 3
+                card = method_info.get('method_card')
+                if card:
+                    rag_guidance += f"\n{card.method_name}:\n"
+                    rag_guidance += f"  Description: {card.when_to_use}\n"
+                    rag_guidance += f"  Use case: {method_info.get('reasoning', '')}\n"
+                    if card.code_example:
+                        rag_guidance += f"  Example code:\n{card.code_example}\n"
+                    rag_guidance += "\n"
         prompt = ChatPromptTemplate.from_messages([
             ("system", """You are a statistical analysis specialist. Generate Python code to perform data analysis.
 
@@ -139,8 +201,12 @@ DataFrame Information:
 Sample Data (first few rows):
 {sample_data}
 
+{distribution_guidance}
+
+{rag_guidance}
+
 Analysis Code Requirements:
-1. Use pandas (pd) and numpy (np) - both are available
+1. Use pandas (pd), numpy (np), scipy.stats, and statsmodels - all are available
 2. Store ALL results in a dictionary named 'results'
 3. Include descriptive labels for each result
 4. Focus on statistical analysis appropriate for the query
@@ -149,14 +215,16 @@ Analysis Code Requirements:
 7. Assume 'df' variable contains the data
 8. Handle missing values gracefully
 9. Convert numpy types to Python types for serialization
+10. If RAG methods are provided above, USE THEM as guidance for your analysis
 
 Common Analysis Patterns:
 - Descriptive stats: results['summary'] = df.describe().to_dict()
 - Aggregations: results['total'] = float(df['col'].sum())
-- Correlations: results['correlation'] = df.corr().to_dict()
+- Correlations: results['correlation'] = df.corr(method='pearson').to_dict()  # or 'spearman' for non-normal
 - Grouping: results['by_group'] = df.groupby('col')['val'].mean().to_dict()
 - Trends: results['trend'] = df['col'].pct_change().mean()
 - Distributions: results['percentiles'] = df['col'].quantile([0.25, 0.5, 0.75]).to_dict()
+- Statistical Tests (from statsmodels/scipy): Use RAG-recommended methods when available
 
 Output Format:
 results = {{
@@ -169,6 +237,8 @@ results = {{
         response = self.llm.invoke(prompt.format_messages(
             df_info=df_info,
             sample_data=str(sample_data)[:500],
+            distribution_guidance=distribution_guidance,
+            rag_guidance=rag_guidance,
             question=user_query
         ))
         
@@ -194,12 +264,14 @@ results = {{
             Analysis results dictionary (or error dict if execution failed)
         """
         import numpy as np
+        from scipy import stats
         
         # Create safe execution environment
         local_vars = {
             'df': df,
             'pd': pd,
             'np': np,
+            'stats': stats,
             'results': {}
         }
         
@@ -310,3 +382,103 @@ results = {{
                 lines.append(f"{key}: {value}")
         
         return "\n".join(lines)
+    
+    def _rag_select_analysis_methods(
+        self,
+        query: str,
+        data_profile: Dict[str, Any],
+        df: pd.DataFrame
+    ) -> List[Dict[str, Any]]:
+        """Use RAG to select appropriate analysis methods.
+        
+        Args:
+            query: User query
+            data_profile: Data profile from ProfilingAgent
+            df: DataFrame
+            
+        Returns:
+            List of method dictionaries with method cards
+        """
+        if not self.rag_system:
+            return []
+        
+        # Detect analysis intent
+        query_lower = query.lower()
+        
+        selected_methods = []
+        
+        # 1. Regression analysis
+        if any(kw in query_lower for kw in ['regression', 'predict', 'relationship', 'impact', 'effect']):
+            try:
+                # Determine regression type
+                if data_profile.get('has_non_normal'):
+                    reg_query = "regression non-normal heteroscedasticity GLS robust"
+                else:
+                    reg_query = "linear regression OLS coefficients interpretation"
+                
+                method_cards = self.rag_system.retrieve_methods_for_statistics(
+                    query=reg_query,
+                    data_profile=data_profile,
+                    k=2
+                )
+                
+                if method_cards:
+                    card, score = method_cards[0]
+                    selected_methods.append({
+                        "analysis_type": "regression",
+                        "method_card": card,
+                        "method_name": card.method_name,
+                        "reasoning": f"Regression analysis requested. {card.when_to_use}",
+                        "code_example": card.code_example,
+                        "interpretation_guide": card.interpretation_guide,
+                        "rag_score": score
+                    })
+                    print(f"[AnalysisAgent] RAG selected regression: {card.method_name} (score: {score:.2f})")
+            except Exception as e:
+                print(f"[AnalysisAgent] RAG regression query failed: {e}")
+        
+        # 2. Group comparison (ANOVA, t-test)
+        if any(kw in query_lower for kw in ['compare', 'difference', 'between', 'groups', 'anova', 't-test']):
+            try:
+                # Check if parametric or non-parametric
+                if data_profile.get('has_non_normal'):
+                    comp_query = "compare groups mann whitney kruskal wallis non-parametric"
+                else:
+                    comp_query = "compare groups means anova t-test"
+                
+                method_cards = self.rag_system.retrieve_methods_for_statistics(
+                    query=comp_query,
+                    data_profile=data_profile,
+                    k=2
+                )
+                
+                if method_cards:
+                    card, score = method_cards[0]
+                    selected_methods.append({
+                        "analysis_type": "group_comparison",
+                        "method_card": card,
+                        "method_name": card.method_name,
+                        "reasoning": f"Group comparison requested. {card.when_to_use}",
+                        "code_example": card.code_example,
+                        "interpretation_guide": card.interpretation_guide,
+                        "rag_score": score
+                    })
+                    print(f"[AnalysisAgent] RAG selected comparison: {card.method_name} (score: {score:.2f})")
+            except Exception as e:
+                print(f"[AnalysisAgent] RAG comparison query failed: {e}")
+        
+        # 3. Correlation analysis (handled by suggested tests from ProfilingAgent)
+        if 'suggested_tests' in data_profile:
+            for test in data_profile['suggested_tests']:
+                if test.get('test_type') == 'correlation':
+                    selected_methods.append({
+                        "analysis_type": "correlation",
+                        "method_card": test.get('method_card'),
+                        "method_name": test.get('method_name'),
+                        "reasoning": test.get('reason'),
+                        "code_example": test.get('code_example'),
+                        "rag_score": test.get('rag_score', 1.0)
+                    })
+                    print(f"[AnalysisAgent] Using ProfilingAgent suggestion: {test.get('method_name')}")
+        
+        return selected_methods

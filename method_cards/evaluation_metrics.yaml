@@ -1,0 +1,361 @@
+- method_name: "Mean Squared Error (MSE)"
+  category: "evaluation"
+  problem_type: "regression"
+  scikit_learn_name: "mean_squared_error"
+  statsmodels_name: null
+  scipy_name: null
+  python_package: "sklearn"
+  when_to_use: "Use MSE to evaluate regression models by measuring average squared difference between predictions and actual values. Emphasizes large errors due to squaring, making it sensitive to outliers."
+  assumptions:
+    - "Continuous target variable"
+    - "Predictions and actuals on same scale"
+  typical_use_cases:
+    - "Comparing regression model performance"
+    - "Hyperparameter tuning objective"
+    - "Model selection when large errors are particularly costly"
+  interpretation_guide: "MSE = (1/n) * Σ(y_true - y_pred)². Lower is better, minimum is 0 (perfect predictions). In squared units of target variable. Heavily penalizes large errors (squaring amplifies them). Sensitive to outliers. Use RMSE for same units as target. Compare MSE across models on same dataset; absolute value depends on target scale. For normalized targets (mean 0, std 1), MSE < 1 suggests reasonable fit. No universal threshold; domain-dependent."
+  evaluation_metrics:
+    - "MSE value (lower is better)"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: null
+    sensitive_to_outliers: true
+    requires_balanced: false
+    min_categories: null
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: null
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "Root Mean Squared Error (RMSE)"
+  category: "evaluation"
+  problem_type: "regression"
+  scikit_learn_name: "mean_squared_error"
+  statsmodels_name: null
+  scipy_name: null
+  python_package: "sklearn"
+  when_to_use: "Use RMSE to evaluate regression models in the same units as the target variable. Square root of MSE, providing more interpretable error magnitude than MSE."
+  assumptions:
+    - "Continuous target variable"
+    - "Predictions and actuals on same scale"
+  typical_use_cases:
+    - "Reporting model error in interpretable units (e.g., dollars, meters)"
+    - "Comparing models when you want to understand typical error magnitude"
+    - "When stakeholders need error in original units"
+  interpretation_guide: "RMSE = √(MSE) = √((1/n) * Σ(y_true - y_pred)²). Lower is better, minimum is 0. Same units as target variable, making it directly interpretable. Example: RMSE = $5000 means typical prediction error is $5000. Still emphasizes large errors (due to squaring inside). Compare to target's standard deviation: RMSE < std suggests model beats naive mean prediction. RMSE ≈ 0.5*std is decent, RMSE < 0.3*std is good. Sensitive to outliers."
+  evaluation_metrics:
+    - "RMSE value (lower is better)"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: null
+    sensitive_to_outliers: true
+    requires_balanced: false
+    min_categories: null
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: null
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "Mean Absolute Error (MAE)"
+  category: "evaluation"
+  problem_type: "regression"
+  scikit_learn_name: "mean_absolute_error"
+  statsmodels_name: null
+  scipy_name: null
+  python_package: "sklearn"
+  when_to_use: "Use MAE to evaluate regression models with a linear penalty for errors. More robust to outliers than MSE/RMSE, treats all errors proportionally."
+  assumptions:
+    - "Continuous target variable"
+    - "Predictions and actuals on same scale"
+  typical_use_cases:
+    - "Evaluating models when outliers should not dominate metric"
+    - "When all errors are equally important regardless of magnitude"
+    - "Reporting typical error magnitude to non-technical stakeholders"
+  interpretation_guide: "MAE = (1/n) * Σ|y_true - y_pred|. Lower is better, minimum is 0. Same units as target. Easier to interpret than RMSE: represents average absolute error. More robust to outliers than MSE/RMSE (no squaring). Example: MAE = 3.2 years means predictions are off by 3.2 years on average. MAE ≤ RMSE always (equality only when all errors are identical). Large RMSE-MAE gap indicates presence of outliers or highly variable errors. Compare to target range to assess relative performance."
+  evaluation_metrics:
+    - "MAE value (lower is better)"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: null
+    sensitive_to_outliers: false
+    requires_balanced: false
+    min_categories: null
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: null
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "R² (Coefficient of Determination)"
+  category: "evaluation"
+  problem_type: "regression"
+  scikit_learn_name: "r2_score"
+  statsmodels_name: null
+  scipy_name: null
+  python_package: "sklearn"
+  when_to_use: "Use R² to measure proportion of variance in target explained by model. Standardized metric (0-1) allowing comparison across different datasets and target scales."
+  assumptions:
+    - "Continuous target variable"
+    - "Linear relationship (for interpretation as variance explained)"
+  typical_use_cases:
+    - "Assessing overall model fit quality"
+    - "Comparing models across different datasets"
+    - "Reporting model performance to stakeholders (easy interpretation)"
+  interpretation_guide: "R² = 1 - (SS_residual / SS_total) = 1 - (Σ(y - ŷ)² / Σ(y - ȳ)²). Range: -∞ to 1 (typically 0-1). R²=1: perfect fit. R²=0: model no better than predicting mean. R²<0: model worse than mean (overfitting or poor model). Interpretation: 0.7-0.9 (strong), 0.5-0.7 (moderate), 0.3-0.5 (weak), <0.3 (very weak). Domain-dependent: social sciences accept lower R², physics expects higher. R² always increases with more features; use Adjusted R² for model selection. Does not indicate if model is appropriate (check residual plots)."
+  evaluation_metrics:
+    - "R² value (0 to 1, higher is better)"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: null
+    sensitive_to_outliers: true
+    requires_balanced: false
+    min_categories: null
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: null
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "Adjusted R²"
+  category: "evaluation"
+  problem_type: "regression"
+  scikit_learn_name: null
+  statsmodels_name: null
+  scipy_name: null
+  python_package: "sklearn"
+  when_to_use: "Use Adjusted R² for model selection when comparing models with different numbers of predictors. Penalizes adding features that don't improve fit, preventing overfitting."
+  assumptions:
+    - "Continuous target variable"
+    - "Linear regression model"
+  typical_use_cases:
+    - "Comparing models with different numbers of features"
+    - "Feature selection (stepwise regression)"
+    - "Preventing overfitting by penalizing model complexity"
+  interpretation_guide: "Adj R² = 1 - ((1-R²)*(n-1)/(n-p-1)) where n=samples, p=features. Always ≤ R². Penalizes adding features that don't improve fit proportionally. Can decrease when adding irrelevant features (unlike R²). Use for model selection: higher Adjusted R² indicates better model. Interpretation thresholds similar to R² but typically slightly lower. When comparing models, improvement > 0.02 is meaningful. Still affected by multicollinearity and outliers. Consider alongside AIC/BIC for comprehensive model selection."
+  evaluation_metrics:
+    - "Adjusted R² value (higher is better, max 1)"
+  data_conditions:
+    sample_size_min: 15
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: null
+    sensitive_to_outliers: true
+    requires_balanced: false
+    min_categories: null
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: null
+    requires_linearity: null
+    min_features: 1
+    max_features: null
+
+- method_name: "AUC-ROC (Area Under ROC Curve)"
+  category: "evaluation"
+  problem_type: "classification"
+  scikit_learn_name: "roc_auc_score"
+  statsmodels_name: null
+  scipy_name: null
+  python_package: "sklearn"
+  when_to_use: "Use AUC-ROC to evaluate binary classification models' ability to discriminate between classes across all probability thresholds. Measures trade-off between true positive rate and false positive rate."
+  assumptions:
+    - "Binary classification (can extend to multiclass)"
+    - "Model produces probability scores"
+  typical_use_cases:
+    - "Comparing classification models overall performance"
+    - "Evaluating model when threshold is uncertain"
+    - "Imbalanced datasets (better than accuracy)"
+  interpretation_guide: "AUC-ROC is area under curve plotting TPR (recall) vs FPR at various thresholds. Range: 0-1. AUC=1: perfect classifier. AUC=0.5: random guessing. AUC<0.5: worse than random (flip predictions). Interpretation: 0.9-1.0 (excellent), 0.8-0.9 (good), 0.7-0.8 (acceptable), 0.6-0.7 (poor), 0.5-0.6 (fail). Threshold-independent: evaluates all possible thresholds. Robust to class imbalance. Does not tell you optimal threshold or actual predictions. Use ROC curve to select threshold balancing TPR/FPR. For severe imbalance, also check Precision-Recall AUC."
+  evaluation_metrics:
+    - "AUC-ROC score (0.5 to 1.0, higher is better)"
+  data_conditions:
+    sample_size_min: 30
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: null
+    sensitive_to_outliers: false
+    requires_balanced: false
+    min_categories: 2
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: null
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "Precision"
+  category: "evaluation"
+  problem_type: "classification"
+  scikit_learn_name: "precision_score"
+  statsmodels_name: null
+  scipy_name: null
+  python_package: "sklearn"
+  when_to_use: "Use Precision when false positives are costly. Measures proportion of positive predictions that are actually correct. Important when you want high confidence in positive predictions."
+  assumptions:
+    - "Binary or multiclass classification"
+    - "Clear definition of positive class"
+  typical_use_cases:
+    - "Spam detection (avoid marking legitimate email as spam)"
+    - "Medical diagnosis (avoid false alarms causing unnecessary treatment)"
+    - "Fraud detection (minimize investigating legitimate transactions)"
+  interpretation_guide: "Precision = TP / (TP + FP) = (true positives) / (predicted positives). Range: 0-1, higher is better. Precision=1: all positive predictions correct. Precision=0.9: 90% of flagged cases are true positives, 10% are false alarms. Low precision → many false positives. Trade-off with Recall: increasing threshold increases precision but decreases recall. Use when cost of false positive > cost of false negative. Example: precision=0.85 in spam detection means 15% of emails marked spam are legitimate (costly to user)."
+  evaluation_metrics:
+    - "Precision score (0 to 1, higher is better)"
+  data_conditions:
+    sample_size_min: 20
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: null
+    sensitive_to_outliers: false
+    requires_balanced: false
+    min_categories: 2
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: null
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "Recall (Sensitivity, TPR)"
+  category: "evaluation"
+  problem_type: "classification"
+  scikit_learn_name: "recall_score"
+  statsmodels_name: null
+  scipy_name: null
+  python_package: "sklearn"
+  when_to_use: "Use Recall when false negatives are costly. Measures proportion of actual positives correctly identified. Important when missing positive cases is dangerous."
+  assumptions:
+    - "Binary or multiclass classification"
+    - "Clear definition of positive class"
+  typical_use_cases:
+    - "Disease screening (catch all sick patients)"
+    - "Fraud detection (detect all fraud cases)"
+    - "Search engines (retrieve all relevant documents)"
+  interpretation_guide: "Recall = TP / (TP + FN) = (true positives) / (actual positives). Range: 0-1, higher is better. Recall=1: found all positive cases. Recall=0.9: detected 90% of actual positives, missed 10%. Low recall → many false negatives. Trade-off with Precision: decreasing threshold increases recall but decreases precision. Use when cost of false negative > cost of false positive. Example: recall=0.85 in disease screening means 15% of sick patients go undetected (very costly)."
+  evaluation_metrics:
+    - "Recall score (0 to 1, higher is better)"
+  data_conditions:
+    sample_size_min: 20
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: null
+    sensitive_to_outliers: false
+    requires_balanced: false
+    min_categories: 2
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: null
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "F1-Score"
+  category: "evaluation"
+  problem_type: "classification"
+  scikit_learn_name: "f1_score"
+  statsmodels_name: null
+  scipy_name: null
+  python_package: "sklearn"
+  when_to_use: "Use F1-Score when you need to balance precision and recall, especially with imbalanced datasets. Harmonic mean of precision and recall."
+  assumptions:
+    - "Binary or multiclass classification"
+    - "Equal importance of precision and recall"
+  typical_use_cases:
+    - "Imbalanced datasets where accuracy is misleading"
+    - "When false positives and false negatives are equally costly"
+    - "Single metric summarizing precision-recall trade-off"
+  interpretation_guide: "F1 = 2 * (Precision * Recall) / (Precision + Recall). Range: 0-1, higher is better. Harmonic mean (penalizes extreme values more than arithmetic mean). F1=1: perfect precision and recall. F1=0: either precision or recall is zero. F1=0.8+ is good, 0.6-0.8 moderate, <0.6 poor. More sensitive to low values: if either precision or recall is low, F1 is low. Use macro-F1 for multiclass (average F1 across classes). Consider F-beta score if precision/recall have different importance: β>1 emphasizes recall, β<1 emphasizes precision."
+  evaluation_metrics:
+    - "F1 score (0 to 1, higher is better)"
+  data_conditions:
+    sample_size_min: 20
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: null
+    sensitive_to_outliers: false
+    requires_balanced: false
+    min_categories: 2
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: null
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "P-Value Interpretation"
+  category: "evaluation"
+  problem_type: "statistical_test"
+  scikit_learn_name: null
+  statsmodels_name: null
+  scipy_name: null
+  python_package: null
+  when_to_use: "Use p-value to determine statistical significance of hypothesis tests and model coefficients. Indicates probability of observing results as extreme as current data if null hypothesis is true."
+  assumptions:
+    - "Valid test statistic computed (t, F, χ², etc.)"
+    - "Test assumptions satisfied"
+    - "Appropriate null hypothesis defined"
+  typical_use_cases:
+    - "Determining if regression coefficient is significant"
+    - "Testing if group means differ (ANOVA, t-test)"
+    - "Assessing feature importance in statistical models"
+  interpretation_guide: "P-value = P(observing test statistic ≥ observed | H₀ is true). NOT the probability H₀ is true. Common threshold α=0.05: p<0.05 → reject H₀ (statistically significant). p<0.001: highly significant (***). p<0.01: very significant (**). p<0.05: significant (*). p≥0.05: not significant (fail to reject H₀). Smaller p → stronger evidence against H₀. P-value alone insufficient: consider effect size, confidence intervals, practical significance. Multiple testing: use Bonferroni correction (divide α by number of tests). P-hacking danger: testing many hypotheses until finding p<0.05 by chance."
+  evaluation_metrics:
+    - "p-value (0 to 1, smaller indicates stronger evidence)"
+    - "Significance level α (typically 0.05, 0.01, 0.001)"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    requires_normality: null
+    handles_missing_values: false
+    handles_categorical: null
+    requires_independence: null
+    sensitive_to_outliers: null
+    requires_balanced: false
+    min_categories: null
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: null
+    requires_linearity: null
+    min_features: null
+    max_features: null

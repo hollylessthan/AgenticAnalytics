@@ -1,0 +1,136 @@
+# Correlation Test Method Cards
+
+- method_name: "Pearson Correlation"
+  category: "stats_correlation"
+  problem_type: "correlation"
+  data_conditions:
+    sample_size_min: 3
+    sample_size_max: null
+    sample_size_recommended: 30
+    normality_required: true
+    handles_non_normal: false
+    handles_missing: false
+    requires_complete_data: true
+    handles_categorical: false
+    requires_numeric: true
+    supports_binary_target: false
+    supports_multiclass_target: false
+    supports_continuous_target: false
+    requires_independence: true
+    handles_outliers: false
+    requires_balanced_classes: false
+  assumptions:
+    - "Linear relationship between variables"
+    - "Both variables normally distributed (for significance test)"
+    - "Homoscedasticity (constant variance)"
+    - "No outliers"
+    - "Independence of observations"
+  when_to_use: "Measure linear correlation between two continuous variables. Both variables approximately normal. Looking for monotonic linear relationship. Sample size >= 30 for reliable significance test."
+  when_not_to_use: "Non-linear relationships (use Spearman instead). Non-normal data or ordinal data (use Spearman/Kendall). Outliers present (skews correlation). Categorical variables."
+  alternatives: ["Spearman", "Kendall", "Point-biserial", "Distance correlation"]
+  code_example: |
+    from scipy.stats import pearsonr
+    correlation, p_value = pearsonr(x, y)
+    print(f'Correlation: {correlation:.3f}')
+    if p_value < 0.05:
+        print(f'Significant (p={p_value:.4f})')
+    else:
+        print(f'Not significant (p={p_value:.4f})')
+  parameters:
+    x: "First variable (1-D array)"
+    y: "Second variable (1-D array, same length as x)"
+  source_url: "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.pearsonr.html"
+  source_license: "BSD-3-Clause"
+  library: "scipy"
+  library_version: "1.11.0"
+  supporting_excerpt: "The Pearson correlation coefficient measures the linear relationship between two datasets. The p-value roughly indicates the probability of an uncorrelated system producing datasets that have a Pearson correlation at least as extreme as the one computed."
+  last_updated: "2025-12-21"
+  confidence: 1.0
+
+- method_name: "Spearman Correlation"
+  category: "stats_correlation"
+  problem_type: "correlation"
+  data_conditions:
+    sample_size_min: 5
+    sample_size_max: null
+    sample_size_recommended: 30
+    normality_required: false
+    handles_non_normal: true
+    handles_missing: false
+    requires_complete_data: true
+    handles_categorical: false
+    requires_numeric: true
+    supports_binary_target: false
+    supports_multiclass_target: false
+    supports_continuous_target: false
+    requires_independence: true
+    handles_outliers: true
+    requires_balanced_classes: false
+  assumptions:
+    - "Monotonic relationship (not necessarily linear)"
+    - "Ordinal or continuous variables"
+    - "Independence of observations"
+  when_to_use: "Measure monotonic (not necessarily linear) correlation. Non-normal data or ordinal data. Outliers present. Small samples. Don't assume linear relationship. Ranked or ordered data."
+  when_not_to_use: "Need to measure specifically linear correlation (use Pearson). Variables are categorical/nominal. Very small samples (n < 5)."
+  alternatives: ["Pearson", "Kendall", "Point-biserial"]
+  code_example: |
+    from scipy.stats import spearmanr
+    correlation, p_value = spearmanr(x, y)
+    print(f'Spearman correlation: {correlation:.3f}')
+    if p_value < 0.05:
+        print(f'Significant monotonic relationship (p={p_value:.4f})')
+  parameters:
+    a: "First variable (1-D array or 2-D array)"
+    b: "Second variable (1-D array, optional if a is 2-D)"
+    alternative: "Alternative hypothesis ('two-sided', 'less', 'greater')"
+  source_url: "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.spearmanr.html"
+  source_license: "BSD-3-Clause"
+  library: "scipy"
+  library_version: "1.11.0"
+  supporting_excerpt: "The Spearman correlation is a nonparametric measure of rank correlation (statistical dependence between the rankings of two variables). It assesses how well the relationship between two variables can be described using a monotonic function."
+  last_updated: "2025-12-21"
+  confidence: 1.0
+
+- method_name: "Kendall Tau"
+  category: "stats_correlation"
+  problem_type: "correlation"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: 10000
+    sample_size_recommended: 100
+    normality_required: false
+    handles_non_normal: true
+    handles_missing: false
+    requires_complete_data: true
+    handles_categorical: false
+    requires_numeric: true
+    supports_binary_target: false
+    supports_multiclass_target: false
+    supports_continuous_target: false
+    requires_independence: true
+    handles_outliers: true
+    requires_balanced_classes: false
+  assumptions:
+    - "Ordinal or continuous variables"
+    - "Independence of observations"
+  when_to_use: "Small samples where you want robust correlation. Many tied ranks in data. Need measure less sensitive to outliers than Spearman. Discrete or grouped data."
+  when_not_to_use: "Large samples (n > 10k) - computationally expensive O(n²). Need fast computation (use Spearman). Variables are categorical."
+  alternatives: ["Spearman", "Pearson"]
+  code_example: |
+    from scipy.stats import kendalltau
+    correlation, p_value = kendalltau(x, y)
+    print(f'Kendall Tau: {correlation:.3f}')
+    if p_value < 0.05:
+        print(f'Significant concordance (p={p_value:.4f})')
+  parameters:
+    x: "First variable (1-D array)"
+    y: "Second variable (1-D array)"
+    variant: "Method variant ('b', 'c')"
+    alternative: "Alternative hypothesis ('two-sided', 'less', 'greater')"
+  source_url: "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.kendalltau.html"
+  source_license: "BSD-3-Clause"
+  library: "scipy"
+  library_version: "1.11.0"
+  supporting_excerpt: "Kendall's tau is a measure of the correspondence between two rankings. Values close to 1 indicate strong agreement, values close to -1 indicate strong disagreement."
+  last_updated: "2025-12-21"
+  confidence: 1.0

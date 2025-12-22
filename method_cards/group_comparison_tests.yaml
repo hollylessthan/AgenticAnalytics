@@ -1,0 +1,373 @@
+- method_name: "One-Way ANOVA"
+  category: "stats"
+  problem_type: "comparison"
+  scikit_learn_name: null
+  statsmodels_name: "anova_lm"
+  scipy_name: "f_oneway"
+  python_package: "scipy"
+  when_to_use: "Use one-way ANOVA to compare means of three or more independent groups. Tests if at least one group mean differs significantly from others. For two groups, use t-test instead."
+  assumptions:
+    - "Independence of observations"
+    - "Normality: Data in each group approximately normally distributed"
+    - "Homogeneity of variance (homoscedasticity): Equal variances across groups"
+    - "Continuous dependent variable"
+    - "Categorical independent variable with 3+ levels"
+  typical_use_cases:
+    - "Compare average sales across multiple store locations"
+    - "Test if different drug treatments have different effects on blood pressure"
+    - "Compare student test scores across multiple teaching methods"
+    - "Analyze crop yields under different fertilizer types"
+  interpretation_guide: "ANOVA tests H₀: all group means are equal. F-statistic = (between-group variance) / (within-group variance). Large F suggests groups differ. P-value < 0.05 (typically) rejects H₀, indicating significant differences. ANOVA only tells if groups differ, not which ones. Use post-hoc tests (Tukey HSD, Bonferroni) to identify which specific groups differ. Effect size η² (eta-squared) measures proportion of variance explained by groups: small (0.01), medium (0.06), large (0.14). Check Levene's test for homogeneity of variance; if violated, use Welch's ANOVA or Kruskal-Wallis."
+  evaluation_metrics:
+    - "F-statistic"
+    - "p-value"
+    - "η² (eta-squared) for effect size"
+    - "ω² (omega-squared) for unbiased effect size"
+  data_conditions:
+    sample_size_min: 20
+    sample_size_max: null
+    requires_normality: true
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: true
+    sensitive_to_outliers: true
+    requires_balanced: false
+    min_categories: 3
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: true
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "Two-Sample t-test (Independent)"
+  category: "stats"
+  problem_type: "comparison"
+  scikit_learn_name: null
+  statsmodels_name: "ttest_ind"
+  scipy_name: "ttest_ind"
+  python_package: "scipy"
+  when_to_use: "Use independent samples t-test to compare means of two unrelated groups. Tests if the two population means are significantly different. For paired/matched samples, use paired t-test instead."
+  assumptions:
+    - "Independence of observations between groups"
+    - "Normality: Data in each group approximately normally distributed"
+    - "Equal variances (can use Welch's t-test if violated)"
+    - "Continuous dependent variable"
+  typical_use_cases:
+    - "Compare blood pressure between treatment and control groups"
+    - "Test if male and female salaries differ"
+    - "Compare customer satisfaction scores between two product versions"
+    - "Analyze test scores between two teaching methods"
+  interpretation_guide: "Tests H₀: μ₁ = μ₂. T-statistic = (mean₁ - mean₂) / (pooled standard error). P-value < 0.05 rejects H₀, indicating significant difference. Set equal_var=False for Welch's t-test (unequal variances). Positive t means group 1 > group 2, negative means group 1 < group 2. Cohen's d measures effect size: |mean₁ - mean₂| / pooled_std. Small (0.2), medium (0.5), large (0.8). Report: t(df)=value, p=value, d=value. Use Levene's test to check equal variance assumption."
+  evaluation_metrics:
+    - "t-statistic"
+    - "p-value (two-tailed or one-tailed)"
+    - "Cohen's d for effect size"
+    - "95% confidence interval for mean difference"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    requires_normality: true
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: true
+    sensitive_to_outliers: true
+    requires_balanced: false
+    min_categories: 2
+    max_categories: 2
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: true
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "Paired t-test"
+  category: "stats"
+  problem_type: "comparison"
+  scikit_learn_name: null
+  statsmodels_name: "ttest_rel"
+  scipy_name: "ttest_rel"
+  python_package: "scipy"
+  when_to_use: "Use paired t-test to compare means of two related groups (same subjects measured twice, or matched pairs). Tests if the mean difference between paired observations is significantly different from zero."
+  assumptions:
+    - "Paired observations (before-after, matched pairs)"
+    - "Normality of differences (not original data)"
+    - "Independence of pairs"
+    - "Continuous dependent variable"
+  typical_use_cases:
+    - "Before-after treatment comparisons (weight before/after diet)"
+    - "Pre-test and post-test scores for same students"
+    - "Comparing two measurement methods on same subjects"
+    - "A/B testing where same users see both versions"
+  interpretation_guide: "Tests H₀: mean_difference = 0. Computes differences d = x₁ - x₂ for each pair, then tests if mean(d) ≠ 0. T-statistic = mean(d) / (std(d)/√n). P-value < 0.05 indicates significant change. More powerful than independent t-test when correlation between pairs exists. Effect size: Cohen's d_z = mean(d) / std(d). Report: t(df)=value, p=value, mean_diff=value ± CI. Check normality of differences using Shapiro-Wilk test; if violated, use Wilcoxon signed-rank test."
+  evaluation_metrics:
+    - "t-statistic"
+    - "p-value (two-tailed or one-tailed)"
+    - "Cohen's d_z for effect size"
+    - "95% confidence interval for mean difference"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    requires_normality: true
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: true
+    sensitive_to_outliers: true
+    requires_balanced: false
+    min_categories: 2
+    max_categories: 2
+    requires_paired: true
+    handles_multicollinearity: null
+    requires_homoscedasticity: null
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "Kruskal-Wallis H Test"
+  category: "stats"
+  problem_type: "comparison"
+  scikit_learn_name: null
+  statsmodels_name: null
+  scipy_name: "kruskal"
+  python_package: "scipy"
+  when_to_use: "Use Kruskal-Wallis test as a non-parametric alternative to one-way ANOVA when normality or equal variance assumptions are violated. Compares medians of three or more independent groups based on ranks."
+  assumptions:
+    - "Independence of observations"
+    - "Ordinal or continuous dependent variable"
+    - "Similar distribution shapes across groups (to compare medians)"
+    - "No assumption of normality or equal variances"
+  typical_use_cases:
+    - "Compare customer satisfaction ratings (ordinal scale) across stores"
+    - "Test if median income differs across education levels"
+    - "Analyze non-normal data with outliers"
+    - "Small sample sizes where normality cannot be assumed"
+  interpretation_guide: "Non-parametric test comparing distributions across groups using ranks. H-statistic follows chi-square distribution with k-1 degrees of freedom (k = number of groups). P-value < 0.05 suggests at least one group differs. Does not assume normality or equal variances. Use post-hoc Dunn's test to identify which groups differ (with Bonferroni correction). Effect size: ε² (epsilon-squared) = H / (n-1). Less powerful than ANOVA when assumptions hold, but more robust to violations. Reports medians rather than means."
+  evaluation_metrics:
+    - "H-statistic"
+    - "p-value"
+    - "ε² (epsilon-squared) for effect size"
+  data_conditions:
+    sample_size_min: 15
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: true
+    sensitive_to_outliers: false
+    requires_balanced: false
+    min_categories: 3
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: false
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "Mann-Whitney U Test"
+  category: "stats"
+  problem_type: "comparison"
+  scikit_learn_name: null
+  statsmodels_name: null
+  scipy_name: "mannwhitneyu"
+  python_package: "scipy"
+  when_to_use: "Use Mann-Whitney U test (also called Wilcoxon rank-sum test) as a non-parametric alternative to independent t-test. Compares distributions of two independent groups when normality cannot be assumed."
+  assumptions:
+    - "Independence of observations between groups"
+    - "Ordinal or continuous dependent variable"
+    - "No assumption of normality"
+  typical_use_cases:
+    - "Compare median response times between two UI designs"
+    - "Test if Likert scale ratings differ between groups"
+    - "Analyze skewed data with outliers"
+    - "Small sample sizes where normality is questionable"
+  interpretation_guide: "Non-parametric test comparing ranks between two groups. U-statistic counts how often group 1 values exceed group 2 values. P-value < 0.05 suggests distributions differ. More robust than t-test to outliers and non-normality. Effect size: r = Z / √n (small: 0.1, medium: 0.3, large: 0.5) or rank-biserial correlation. Use alternative='two-sided' (default) for difference in either direction, 'less' or 'greater' for one-tailed. Reports median difference, not mean. Less powerful than t-test when normality holds."
+  evaluation_metrics:
+    - "U-statistic"
+    - "p-value (two-tailed or one-tailed)"
+    - "r (effect size from z-score)"
+    - "Rank-biserial correlation"
+  data_conditions:
+    sample_size_min: 8
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: true
+    sensitive_to_outliers: false
+    requires_balanced: false
+    min_categories: 2
+    max_categories: 2
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: false
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "Chi-Square Test of Independence"
+  category: "stats"
+  problem_type: "comparison"
+  scikit_learn_name: null
+  statsmodels_name: null
+  scipy_name: "chi2_contingency"
+  python_package: "scipy"
+  when_to_use: "Use chi-square test to examine association between two categorical variables. Tests if the distribution of one variable depends on the categories of another variable."
+  assumptions:
+    - "Independence of observations"
+    - "Categorical variables (nominal or ordinal)"
+    - "Expected frequency ≥ 5 in at least 80% of cells"
+    - "Expected frequency ≥ 1 in all cells"
+  typical_use_cases:
+    - "Test if product preference depends on customer age group"
+    - "Examine relationship between gender and voting choice"
+    - "Analyze if treatment outcome (success/failure) differs by hospital"
+    - "Test independence between job satisfaction and department"
+  interpretation_guide: "Tests H₀: variables are independent (no association). χ² = Σ((observed - expected)² / expected) across all cells in contingency table. P-value < 0.05 suggests association exists. Check expected frequencies: if < 5 in >20% of cells, use Fisher's exact test. Effect size: Cramér's V = √(χ²/(n*min(rows-1, cols-1))). Small (0.1), medium (0.3), large (0.5) for df=1. Examine residuals to see which cells contribute most to association. Reports observed vs expected counts in contingency table."
+  evaluation_metrics:
+    - "χ² statistic"
+    - "p-value"
+    - "Degrees of freedom: (rows-1)*(cols-1)"
+    - "Cramér's V for effect size"
+  data_conditions:
+    sample_size_min: 20
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: true
+    requires_independence: true
+    sensitive_to_outliers: false
+    requires_balanced: false
+    min_categories: 2
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: null
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "One-Sample z-test"
+  category: "stats"
+  problem_type: "comparison"
+  scikit_learn_name: null
+  statsmodels_name: "ztest"
+  scipy_name: null
+  python_package: "statsmodels"
+  when_to_use: "Use one-sample z-test to compare a sample mean to a known population mean when population standard deviation is known and sample size is large (n ≥ 30). For unknown population standard deviation, use t-test instead."
+  assumptions:
+    - "Population standard deviation is known"
+    - "Large sample size (n ≥ 30) or normally distributed population"
+    - "Independence of observations"
+    - "Random sampling from population"
+  typical_use_cases:
+    - "Test if average IQ in a school differs from national mean (σ = 15)"
+    - "Compare sample mean height to known population mean"
+    - "Quality control: test if product weights match target when σ is known"
+    - "Verify if sample represents population with known parameters"
+  interpretation_guide: "Tests H₀: μ = μ₀. Z-statistic = (x̄ - μ₀) / (σ/√n) where σ is known population std. Z follows standard normal N(0,1). P-value < 0.05 rejects H₀. Use two-tailed for μ ≠ μ₀, one-tailed for μ > μ₀ or μ < μ₀. More powerful than t-test when σ is truly known. Critical values: ±1.96 for α=0.05 (two-tailed), 1.645 for α=0.05 (one-tailed). Report: z=value, p=value, 95% CI. Rarely used in practice since σ is usually unknown; t-test is more common."
+  evaluation_metrics:
+    - "z-statistic"
+    - "p-value (two-tailed or one-tailed)"
+    - "95% confidence interval for mean"
+  data_conditions:
+    sample_size_min: 30
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: true
+    sensitive_to_outliers: true
+    requires_balanced: false
+    min_categories: null
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: null
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "Two-Sample z-test"
+  category: "stats"
+  problem_type: "comparison"
+  scikit_learn_name: null
+  statsmodels_name: "ztest"
+  scipy_name: null
+  python_package: "statsmodels"
+  when_to_use: "Use two-sample z-test to compare means of two independent groups when population standard deviations are known and sample sizes are large. For unknown standard deviations, use t-test instead."
+  assumptions:
+    - "Population standard deviations are known"
+    - "Large sample sizes (n₁, n₂ ≥ 30) or normally distributed populations"
+    - "Independence of observations between and within groups"
+    - "Random sampling from populations"
+  typical_use_cases:
+    - "Compare average scores between two schools when population σ is known"
+    - "Test if two manufacturing processes produce different mean outputs (known σ)"
+    - "Compare customer satisfaction between regions with established variance"
+  interpretation_guide: "Tests H₀: μ₁ = μ₂. Z-statistic = (x̄₁ - x̄₂) / √(σ₁²/n₁ + σ₂²/n₂) where σ₁, σ₂ are known. P-value < 0.05 indicates significant difference. More powerful than t-test when population parameters truly known. Effect size: Cohen's d = (x̄₁ - x̄₂) / pooled_σ. Use alternative='two-sided' (default) or 'larger'/'smaller' for one-tailed. Rarely used in practice; t-test more common when σ unknown."
+  evaluation_metrics:
+    - "z-statistic"
+    - "p-value (two-tailed or one-tailed)"
+    - "Cohen's d for effect size"
+    - "95% confidence interval for mean difference"
+  data_conditions:
+    sample_size_min: 30
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: true
+    sensitive_to_outliers: true
+    requires_balanced: false
+    min_categories: 2
+    max_categories: 2
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: null
+    requires_linearity: null
+    min_features: null
+    max_features: null
+
+- method_name: "Binomial Test"
+  category: "stats"
+  problem_type: "comparison"
+  scikit_learn_name: null
+  statsmodels_name: "binom_test"
+  scipy_name: "binomtest"
+  python_package: "scipy"
+  when_to_use: "Use binomial test to test if the probability of success in a binary outcome differs from a hypothesized value. Exact test for binary/dichotomous data with two possible outcomes."
+  assumptions:
+    - "Binary outcome (success/failure, yes/no)"
+    - "Fixed number of independent trials"
+    - "Constant probability of success across trials"
+    - "Independence of observations"
+  typical_use_cases:
+    - "Test if a coin is fair (p = 0.5) based on 100 flips"
+    - "Check if conversion rate (15%) differs from target (20%)"
+    - "Test if proportion of defective items exceeds acceptable level"
+    - "Verify if success rate in clinical trial differs from historical rate"
+  interpretation_guide: "Tests H₀: p = p₀. Uses exact binomial distribution: P(X = k) = C(n,k) * p₀^k * (1-p₀)^(n-k). P-value is sum of probabilities for outcomes as extreme or more extreme than observed. P-value < 0.05 rejects H₀. Use alternative='two-sided' (default) for p ≠ p₀, 'greater' for p > p₀, 'less' for p < p₀. Exact test (no approximation), valid for any sample size. For large n (>30), normal approximation via z-test is faster. Report: observed successes, n, p-value, 95% CI for proportion."
+  evaluation_metrics:
+    - "p-value (exact)"
+    - "Observed proportion vs hypothesized proportion"
+    - "95% confidence interval for proportion"
+  data_conditions:
+    sample_size_min: 5
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: true
+    requires_independence: true
+    sensitive_to_outliers: false
+    requires_balanced: false
+    min_categories: 2
+    max_categories: 2
+    requires_paired: false
+    handles_multicollinearity: null
+    requires_homoscedasticity: null
+    requires_linearity: null
+    min_features: null
+    max_features: null

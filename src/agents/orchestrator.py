@@ -9,6 +9,9 @@ from src.agents.sql_agent import SQLAgent
 from src.agents.analysis_agent import AnalysisAgent
 from src.agents.visualization_agent import VisualizationAgent
 from src.agents.communication_agent import CommunicationAgent
+from src.agents.profiling_agent import ProfilingAgent
+from src.agents.preprocessing_agent import PreprocessingAgent
+from src.agents.modeling_agent import ModelingAgent
 from src.agents.query_classifier import QueryClassifier, PlanType
 from src.config import Config
 from src.utils.llm_factory import get_llm
@@ -36,7 +39,10 @@ class AgentOrchestrator:
         
         # Initialize agents
         self.sql_agent = SQLAgent(self.config, smart_limit=smart_limit, smart_limit_rows=smart_limit_rows)
+        self.profiling_agent = ProfilingAgent(self.config)
+        self.preprocessing_agent = PreprocessingAgent(self.config)
         self.analysis_agent = AnalysisAgent(self.config)
+        self.modeling_agent = ModelingAgent(self.config)
         self.visualization_agent = VisualizationAgent(self.config)
         self.communication_agent = CommunicationAgent(self.config)
         
@@ -62,7 +68,10 @@ class AgentOrchestrator:
         # Add nodes
         workflow.add_node("classifier", self._classify_query)
         workflow.add_node("sql_agent", self._execute_sql_agent)
+        workflow.add_node("profiling_agent", self._execute_profiling_agent)
+        workflow.add_node("preprocessing_agent", self._execute_preprocessing_agent)
         workflow.add_node("analysis_agent", self._execute_analysis_agent)
+        workflow.add_node("modeling_agent", self._execute_modeling_agent)
         workflow.add_node("visualization_agent", self._execute_visualization_agent)
         workflow.add_node("communication_agent", self._execute_communication_agent)
         
@@ -75,6 +84,8 @@ class AgentOrchestrator:
             self._route_from_classifier,
             {
                 "sql_agent": "sql_agent",
+                "profiling_agent": "profiling_agent",
+                "preprocessing_agent": "preprocessing_agent",
                 "visualization_agent": "visualization_agent",
                 "analysis_agent": "analysis_agent",
                 "communication_agent": "communication_agent"
@@ -85,7 +96,31 @@ class AgentOrchestrator:
             "sql_agent",
             self._route_from_sql,
             {
+                "profiling_agent": "profiling_agent",
+                "preprocessing_agent": "preprocessing_agent",
                 "analysis_agent": "analysis_agent",
+                "visualization_agent": "visualization_agent",
+                "communication_agent": "communication_agent"
+            }
+        )
+        
+        workflow.add_conditional_edges(
+            "profiling_agent",
+            self._route_from_profiling,
+            {
+                "preprocessing_agent": "preprocessing_agent",
+                "analysis_agent": "analysis_agent",
+                "visualization_agent": "visualization_agent",
+                "communication_agent": "communication_agent"
+            }
+        )
+        
+        workflow.add_conditional_edges(
+            "preprocessing_agent",
+            self._route_from_preprocessing,
+            {
+                "analysis_agent": "analysis_agent",
+                "modeling_agent": "modeling_agent",
                 "visualization_agent": "visualization_agent",
                 "communication_agent": "communication_agent"
             }
@@ -94,6 +129,16 @@ class AgentOrchestrator:
         workflow.add_conditional_edges(
             "analysis_agent",
             self._route_from_analysis,
+            {
+                "modeling_agent": "modeling_agent",
+                "visualization_agent": "visualization_agent",
+                "communication_agent": "communication_agent"
+            }
+        )
+        
+        workflow.add_conditional_edges(
+            "modeling_agent",
+            self._route_from_modeling,
             {
                 "visualization_agent": "visualization_agent",
                 "communication_agent": "communication_agent"
@@ -202,6 +247,19 @@ class AgentOrchestrator:
                 print("[Orchestrator] Data transformation requested, running SQL agent")
                 return "sql_agent"
             
+            # Route based on plan type (classifier already determined what's needed)
+            if state.plan_type == PlanType.SQL_MODELING.value:
+                print("[Orchestrator] Modeling requested on cached data, profiling first")
+                return "profiling_agent"  # Profile → preprocess → model
+            
+            if state.plan_type == PlanType.SQL_PREPROCESSING.value:
+                print("[Orchestrator] Preprocessing requested on cached data")
+                return "profiling_agent"  # Profile → preprocess
+            
+            if state.plan_type == PlanType.SQL_PROFILING.value:
+                print("[Orchestrator] Profiling requested on cached data")
+                return "profiling_agent"
+            
             # Route based on what user wants to do with the data
             if state.update_visualization or state.plan_type == PlanType.SQL_VIZ.value:
                 return "visualization_agent"
@@ -254,6 +312,42 @@ class AgentOrchestrator:
         
         return state
     
+    def _execute_profiling_agent(self, state: AgentState) -> AgentState:
+        """Execute profiling agent with timing."""
+        if self.status_callback:
+            self.status_callback("profiling_agent", "🔍 Profiling data quality...", "running")
+        
+        start_time = time.time()
+        state = self.profiling_agent.execute(state)
+        elapsed = time.time() - start_time
+        self.metrics['agent_latencies']['profiling_agent'] = elapsed
+        print(f"[Profiling Agent] Time: {elapsed*1000:.1f}ms")
+        
+        if self.status_callback:
+            if state.data_summary and state.data_summary.get('has_quality_issues'):
+                self.status_callback("profiling_agent", "⚠ Quality issues detected", "complete")
+            else:
+                self.status_callback("profiling_agent", "✓ Data quality profiled", "complete")
+        
+        return state
+    
+    def _execute_preprocessing_agent(self, state: AgentState) -> AgentState:
+        """Execute preprocessing agent with timing."""
+        if self.status_callback:
+            self.status_callback("preprocessing_agent", "🔧 Checking data quality...", "running")
+        
+        start_time = time.time()
+        state = self.preprocessing_agent.execute(state)
+        elapsed = time.time() - start_time
+        self.metrics['agent_latencies']['preprocessing_agent'] = elapsed
+        print(f"[Preprocessing Agent] Time: {elapsed*1000:.1f}ms")
+        
+        if self.status_callback:
+            status_msg = "⏸ Waiting for preprocessing approval" if state.needs_preprocessing_confirmation else "✓ Data prepared"
+            self.status_callback("preprocessing_agent", status_msg, "complete")
+        
+        return state
+    
     def _execute_visualization_agent(self, state: AgentState) -> AgentState:
         """Execute visualization agent with timing."""
         if self.status_callback:
@@ -287,7 +381,7 @@ class AgentOrchestrator:
         return state
     
     def _route_from_sql(self, state: AgentState) -> str:
-        """Route from SQL agent based on plan_type.
+        """Route from SQL agent based on classified plan type.
         
         Args:
             state: Current state
@@ -299,16 +393,91 @@ class AgentOrchestrator:
         if state.errors:
             return "communication_agent"
         
-        # Route based on classified plan type
-        if state.plan_type == PlanType.SQL_ONLY.value:
+        # Route based on classified plan type (classifier determines the full path)
+        plan = state.plan_type
+        
+        # New plan types with explicit routing
+        if plan == PlanType.SQL_MODELING.value:
+            # Modeling requires: SQL → profiling → preprocessing → modeling
+            return "profiling_agent"
+        elif plan == PlanType.SQL_PREPROCESSING.value:
+            # Preprocessing requires: SQL → profiling → preprocessing
+            return "profiling_agent"
+        elif plan == PlanType.SQL_PROFILING.value:
+            # Profiling: SQL → profiling → communication
+            return "profiling_agent"
+        
+        # Legacy plan types
+        elif plan == PlanType.SQL_ONLY.value:
             return "communication_agent"
-        elif state.plan_type == PlanType.SQL_ANALYSIS.value:
+        elif plan == PlanType.SQL_ANALYSIS.value:
             return "analysis_agent"
-        elif state.plan_type == PlanType.SQL_VIZ.value:
+        elif plan == PlanType.SQL_VIZ.value:
             return "visualization_agent"
-        elif state.plan_type == PlanType.SQL_ANALYSIS_VIZ.value:
+        elif plan == PlanType.SQL_ANALYSIS_VIZ.value:
             return "analysis_agent"  # Analysis first, then viz
         else:
+            return "communication_agent"
+    
+    def _route_from_profiling(self, state: AgentState) -> str:
+        """Route from profiling agent based on plan type.
+        
+        Args:
+            state: Current state
+            
+        Returns:
+            Next node name
+        """
+        # If errors occurred, go to communication
+        if state.errors:
+            return "communication_agent"
+        
+        # Route based on plan type (classifier already determined the path)
+        plan = state.plan_type
+        
+        if plan == PlanType.SQL_MODELING.value:
+            # Modeling path: profiling → preprocessing → modeling
+            return "preprocessing_agent"
+        elif plan == PlanType.SQL_PREPROCESSING.value:
+            # Preprocessing path: profiling → preprocessing → communication
+            return "preprocessing_agent"
+        elif plan == PlanType.SQL_PROFILING.value:
+            # Profiling only: profiling → communication
+            return "communication_agent"
+        else:
+            # Legacy plans (SQL_ANALYSIS, etc.) - route to analysis agent
+            return "analysis_agent"
+    
+    def _route_from_preprocessing(self, state: AgentState) -> str:
+        """Route from preprocessing agent based on plan type.
+        
+        Args:
+            state: Current state
+            
+        Returns:
+            Next node name
+        """
+        # If preprocessing needs confirmation, pause execution
+        if state.needs_preprocessing_confirmation:
+            # This will cause the graph to return early
+            # UI will detect this and show confirmation dialog
+            return "communication_agent"
+        
+        # If errors occurred, go to communication
+        if state.errors:
+            return "communication_agent"
+        
+        # Route based on plan type (classifier already determined the path)
+        plan = state.plan_type
+        
+        if plan == PlanType.SQL_MODELING.value:
+            # Modeling path: preprocessing → modeling
+            return "modeling_agent"
+        elif plan == PlanType.SQL_PREPROCESSING.value:
+            # Preprocessing only: preprocessing → communication
+            return "communication_agent"
+        else:
+            # Unexpected path, handle gracefully
             return "communication_agent"
     
     def _route_from_analysis(self, state: AgentState) -> str:
@@ -324,11 +493,74 @@ class AgentOrchestrator:
         if state.errors:
             return "communication_agent"
         
+        # Check if plan indicates modeling is needed (this shouldn't happen if routing is correct)
+        # Analysis agent should only run for SQL_ANALYSIS or SQL_ANALYSIS_VIZ plans
+        if state.plan_type == PlanType.SQL_MODELING.value:
+            print("[Orchestrator] WARNING: SQL_MODELING plan reached analysis agent, routing to modeling")
+            return "modeling_agent"
+        
         # If plan includes visualization, route there
         if state.plan_type == PlanType.SQL_ANALYSIS_VIZ.value:
             return "visualization_agent"
         else:
             return "communication_agent"
+    
+    def _route_from_modeling(self, state: AgentState) -> str:
+        """Route from modeling agent.
+        
+        Args:
+            state: Current state
+            
+        Returns:
+            Next node name
+        """
+        # If errors occurred, go straight to communication
+        if state.errors:
+            return "communication_agent"
+        
+        # Check if visualization is requested
+        query_lower = state.query.lower()
+        viz_keywords = ["plot", "chart", "graph", "visualize", "show"]
+        
+        if any(kw in query_lower for kw in viz_keywords):
+            print("[Orchestrator] Visualization requested after modeling")
+            return "visualization_agent"
+        
+        # Default: go to communication to explain results
+        return "communication_agent"
+    
+    # NOTE: The following helper functions are now OBSOLETE.
+    # The classifier (query_classifier.py) now handles all routing decisions via PlanType.
+    # These are kept temporarily for backwards compatibility but should not be called.
+    # The new plan types (SQL_MODELING, SQL_PREPROCESSING, SQL_PROFILING) encode the full routing path.
+    
+    def _execute_modeling_agent(self, state: AgentState) -> AgentState:
+        """Execute modeling agent with timing.
+        
+        Args:
+            state: Current state
+            
+        Returns:
+            Updated state
+        """
+        if self.status_callback:
+            self.status_callback("modeling_agent", "🤖 Training machine learning model...", "running")
+        
+        start_time = time.time()
+        state = self.modeling_agent.execute(state)
+        elapsed = time.time() - start_time
+        
+        self.metrics['agent_latencies']['modeling_agent'] = elapsed
+        
+        if self.status_callback:
+            if state.errors:
+                self.status_callback("modeling_agent", f"✗ Error: {state.errors[-1]}", "error")
+            else:
+                model_name = state.model_results.get('selected_model', 'Model') if hasattr(state, 'model_results') and state.model_results else 'Model'
+                self.status_callback("modeling_agent", f"✓ {model_name} trained", "complete")
+        
+        print(f"[Orchestrator] ModelingAgent completed in {elapsed*1000:.1f}ms")
+        return state
     
     def get_metrics(self) -> Dict[str, Any]:
         """Get routing and performance metrics.
@@ -368,6 +600,11 @@ class AgentOrchestrator:
         """
         start_time = time.time()
         
+        # Log user query for debugging
+        print(f"\n{'='*80}")
+        print(f"[Orchestrator] 👤 User Query: {user_query}")
+        print(f"{'='*80}\n")
+        
         # Create initial state, optionally inheriting cached data from previous state
         initial_state = AgentState(
             query=user_query,
@@ -380,6 +617,16 @@ class AgentOrchestrator:
             initial_state.cached_dataframe = previous_state.cached_dataframe
             initial_state.last_sql_query = previous_state.last_sql_query
             initial_state.current_visualization_code = previous_state.current_visualization_code
+            
+            # Inherit preprocessing state for multi-turn modeling workflows
+            initial_state.preprocessed_dataframe = previous_state.preprocessed_dataframe
+            initial_state.data_profile = previous_state.data_profile
+            initial_state.preprocessing_applied = previous_state.preprocessing_applied
+            
+            # Inherit model state for follow-up questions
+            initial_state.model_results = previous_state.model_results
+            initial_state.model_summary = previous_state.model_summary
+            
             print(f"[Orchestrator] Inherited session state from previous query")
         
         final_state = self.graph.invoke(initial_state)

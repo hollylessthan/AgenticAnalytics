@@ -1,0 +1,254 @@
+- method_name: "Linear Regression (OLS)"
+  category: "model"
+  problem_type: "regression"
+  scikit_learn_name: "LinearRegression"
+  statsmodels_name: "OLS"
+  scipy_name: null
+  python_package: "statsmodels"
+  when_to_use: "Use Ordinary Least Squares (OLS) regression when you need to model a continuous target variable as a linear function of predictors. Best when relationships are approximately linear, residuals are normally distributed, and you need interpretable coefficients with statistical significance tests."
+  assumptions:
+    - "Linear relationship between predictors and target"
+    - "Independence of observations"
+    - "Homoscedasticity (constant variance of residuals)"
+    - "Normality of residuals"
+    - "No multicollinearity among predictors"
+  typical_use_cases:
+    - "Predicting house prices from features like size, bedrooms, location"
+    - "Modeling sales based on advertising spend, seasonality, pricing"
+    - "Estimating salary from experience, education, job role"
+  interpretation_guide: "Coefficients represent the expected change in target for a one-unit change in predictor, holding others constant. The p-value tests if coefficient is significantly different from zero (typically α=0.05). R² measures proportion of variance explained (0-1, higher is better). Adjusted R² penalizes adding non-informative predictors. Check residual plots to validate assumptions: Q-Q plot for normality, residuals vs fitted for homoscedasticity, residuals vs predictors for linearity."
+  evaluation_metrics:
+    - "MSE (Mean Squared Error)"
+    - "RMSE (Root Mean Squared Error)"
+    - "MAE (Mean Absolute Error)"
+    - "R² (Coefficient of Determination)"
+    - "Adjusted R²"
+    - "F-statistic for overall model significance"
+    - "t-statistics and p-values for individual coefficients"
+  data_conditions:
+    sample_size_min: 30
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: true
+    sensitive_to_outliers: true
+    requires_balanced: false
+    min_categories: null
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: false
+    requires_homoscedasticity: true
+    requires_linearity: true
+    min_features: 1
+    max_features: null
+
+- method_name: "Ridge Regression (L2)"
+  category: "model"
+  problem_type: "regression"
+  scikit_learn_name: "Ridge"
+  statsmodels_name: null
+  scipy_name: null
+  python_package: "sklearn"
+  when_to_use: "Use Ridge regression when predictors are correlated (multicollinearity) or when you have many features relative to samples. The L2 penalty shrinks coefficients toward zero but never exactly to zero, providing more stable estimates than OLS when predictors are correlated."
+  assumptions:
+    - "Linear relationship between predictors and target"
+    - "Independence of observations"
+    - "Can handle multicollinearity better than OLS"
+  typical_use_cases:
+    - "High-dimensional data with correlated features (genomics, text analysis)"
+    - "Stabilizing regression coefficients when predictors are highly correlated"
+    - "Preventing overfitting in models with many features"
+  interpretation_guide: "Ridge adds penalty λ * sum(β²) to minimize squared residuals plus squared coefficients. Larger λ (alpha parameter) increases regularization, shrinking coefficients more toward zero. Use cross-validation to select optimal α. Coefficients are biased but have lower variance than OLS. Standardize features before fitting so penalty affects all features equally. Cannot perform feature selection (all coefficients remain non-zero)."
+  evaluation_metrics:
+    - "MSE (Mean Squared Error)"
+    - "RMSE (Root Mean Squared Error)"
+    - "R² (Coefficient of Determination)"
+    - "Cross-validated R² to tune regularization strength"
+  data_conditions:
+    sample_size_min: 20
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: true
+    sensitive_to_outliers: true
+    requires_balanced: false
+    min_categories: null
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: true
+    requires_homoscedasticity: false
+    requires_linearity: true
+    min_features: 1
+    max_features: null
+
+- method_name: "Lasso Regression (L1)"
+  category: "model"
+  problem_type: "regression"
+  scikit_learn_name: "Lasso"
+  statsmodels_name: null
+  scipy_name: null
+  python_package: "sklearn"
+  when_to_use: "Use Lasso regression when you suspect only a subset of features are relevant and want automatic feature selection. The L1 penalty shrinks some coefficients exactly to zero, performing variable selection while fitting the model."
+  assumptions:
+    - "Linear relationship between predictors and target"
+    - "Independence of observations"
+    - "Sparsity assumption: only subset of features are truly relevant"
+  typical_use_cases:
+    - "Feature selection in high-dimensional data"
+    - "Building interpretable models by identifying most important predictors"
+    - "Genomics where only few genes affect outcome"
+    - "Text classification where only key words matter"
+  interpretation_guide: "Lasso adds penalty λ * sum(|β|) to minimize squared residuals plus absolute coefficients. Larger λ (alpha) increases regularization and sets more coefficients to exactly zero. Non-zero coefficients indicate selected features. Use cross-validation to tune α. Can be unstable when features are highly correlated (may arbitrarily select one). Consider Elastic Net if features are correlated and you want feature selection."
+  evaluation_metrics:
+    - "MSE (Mean Squared Error)"
+    - "RMSE (Root Mean Squared Error)"
+    - "R² (Coefficient of Determination)"
+    - "Number of non-zero coefficients (sparsity)"
+    - "Cross-validated R² to tune regularization strength"
+  data_conditions:
+    sample_size_min: 20
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: true
+    sensitive_to_outliers: true
+    requires_balanced: false
+    min_categories: null
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: false
+    requires_homoscedasticity: false
+    requires_linearity: true
+    min_features: 1
+    max_features: null
+
+- method_name: "Elastic Net Regression"
+  category: "model"
+  problem_type: "regression"
+  scikit_learn_name: "ElasticNet"
+  statsmodels_name: null
+  scipy_name: null
+  python_package: "sklearn"
+  when_to_use: "Use Elastic Net when you need feature selection (like Lasso) but have correlated predictors. It combines L1 and L2 penalties, performing feature selection while maintaining stability when features are correlated."
+  assumptions:
+    - "Linear relationship between predictors and target"
+    - "Independence of observations"
+    - "Benefits from sparsity but handles correlated features better than pure Lasso"
+  typical_use_cases:
+    - "High-dimensional data with groups of correlated features"
+    - "Feature selection when predictors are not independent"
+    - "Combining benefits of Ridge (stability) and Lasso (sparsity)"
+  interpretation_guide: "Elastic Net minimizes squared residuals + λ₁*sum(|β|) + λ₂*sum(β²). Two hyperparameters: α controls overall regularization strength, l1_ratio (0-1) balances L1 vs L2 penalty. l1_ratio=1 is pure Lasso, l1_ratio=0 is pure Ridge. Typical l1_ratio: 0.5-0.9. Use cross-validation to tune both parameters. When features are correlated, tends to select groups rather than individual features (unlike Lasso which picks arbitrarily)."
+  evaluation_metrics:
+    - "MSE (Mean Squared Error)"
+    - "RMSE (Root Mean Squared Error)"
+    - "R² (Coefficient of Determination)"
+    - "Number of non-zero coefficients"
+    - "Cross-validated R² to tune regularization parameters"
+  data_conditions:
+    sample_size_min: 20
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: true
+    sensitive_to_outliers: true
+    requires_balanced: false
+    min_categories: null
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: true
+    requires_homoscedasticity: false
+    requires_linearity: true
+    min_features: 1
+    max_features: null
+
+- method_name: "Generalized Least Squares (GLS)"
+  category: "model"
+  problem_type: "regression"
+  scikit_learn_name: null
+  statsmodels_name: "GLS"
+  scipy_name: null
+  python_package: "statsmodels"
+  when_to_use: "Use GLS when residuals have non-constant variance (heteroscedasticity) or are correlated (autocorrelation in time series). GLS accounts for known error covariance structure, providing more efficient estimates and correct standard errors when OLS assumptions are violated."
+  assumptions:
+    - "Linear relationship between predictors and target"
+    - "Independence of observations (can be relaxed with appropriate covariance structure)"
+    - "Known or estimable error covariance structure"
+  typical_use_cases:
+    - "Time series regression with autocorrelated errors"
+    - "Panel data with cross-sectional heteroscedasticity"
+    - "Weighted regression when error variance differs across observations"
+  interpretation_guide: "GLS transforms data using covariance matrix Σ to obtain efficient estimates: β_GLS = (X'Σ⁻¹X)⁻¹X'Σ⁻¹y. If Σ is unknown, use Feasible GLS (FGLS) which estimates it from data. Coefficients have same interpretation as OLS but standard errors account for heteroscedasticity/autocorrelation. More efficient than OLS when assumptions hold. Use diagnostic tests (Breusch-Pagan for heteroscedasticity, Durbin-Watson for autocorrelation) to justify GLS over OLS."
+  evaluation_metrics:
+    - "MSE (Mean Squared Error)"
+    - "Log-likelihood"
+    - "AIC (Akaike Information Criterion)"
+    - "BIC (Bayesian Information Criterion)"
+    - "Durbin-Watson statistic for autocorrelation"
+    - "Breusch-Pagan test for heteroscedasticity"
+  data_conditions:
+    sample_size_min: 30
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: false
+    sensitive_to_outliers: true
+    requires_balanced: false
+    min_categories: null
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: false
+    requires_homoscedasticity: false
+    requires_linearity: true
+    min_features: 1
+    max_features: null
+
+- method_name: "Logistic Regression"
+  category: "model"
+  problem_type: "classification"
+  scikit_learn_name: "LogisticRegression"
+  statsmodels_name: "Logit"
+  scipy_name: null
+  python_package: "sklearn"
+  when_to_use: "Use Logistic Regression for binary classification when you need probabilistic predictions and interpretable coefficients. Despite the name, it's a classification algorithm that models the log-odds of the outcome as a linear function of predictors."
+  assumptions:
+    - "Binary or multinomial outcome"
+    - "Linear relationship between predictors and log-odds of outcome"
+    - "Independence of observations"
+    - "No severe multicollinearity"
+  typical_use_cases:
+    - "Customer churn prediction (stay/leave)"
+    - "Email spam detection (spam/not spam)"
+    - "Disease diagnosis (disease/no disease)"
+    - "Credit default prediction (default/no default)"
+  interpretation_guide: "Models P(y=1|X) = 1/(1 + exp(-(β₀ + β₁x₁ + ...))). Coefficients represent change in log-odds: exp(β) is odds ratio for one-unit increase in predictor. Positive β increases probability of class 1, negative β decreases it. Use predict_proba() for probabilities, apply threshold (default 0.5) for class predictions. Adjust threshold based on cost of false positives vs false negatives. Regularization (L1/L2) prevents overfitting and handles multicollinearity."
+  evaluation_metrics:
+    - "Accuracy"
+    - "Precision"
+    - "Recall"
+    - "F1-Score"
+    - "AUC-ROC (Area Under ROC Curve)"
+    - "Log Loss (Cross-Entropy)"
+    - "Confusion Matrix"
+  data_conditions:
+    sample_size_min: 30
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    requires_independence: true
+    sensitive_to_outliers: true
+    requires_balanced: false
+    min_categories: 2
+    max_categories: null
+    requires_paired: false
+    handles_multicollinearity: false
+    requires_homoscedasticity: false
+    requires_linearity: false
+    min_features: 1
+    max_features: null

@@ -19,6 +19,8 @@ class ConversationSnapshot(BaseModel):
     dataframe: Optional[Any] = Field(default=None, description="DataFrame result (stored in memory)")
     visualization_path: Optional[str] = Field(default=None, description="Path to visualization")
     visualization_code: Optional[str] = Field(default=None, description="Code used to generate visualization")
+    model_results: Optional[Dict[str, Any]] = Field(default=None, description="Model training results if modeling was performed")
+    model_summary: Optional[str] = Field(default=None, description="Model summary output")
     response: Optional[str] = Field(default=None, description="Agent response to user")
     snapshot_id: int = Field(default=0, description="Sequential ID for this snapshot (1, 2, 3...)")
     
@@ -69,6 +71,31 @@ class AgentState(BaseModel):
     max_history_size: int = Field(default=10, description="Maximum number of snapshots to keep")
     referenced_snapshot_id: Optional[int] = Field(default=None, description="ID of snapshot being referenced (e.g., 'use data from step 2')")
     
+    # Preprocessing (NEW - for data transformation and modeling)
+    preprocessing_mode: str = Field(default="confirm", description="Preprocessing mode: 'confirm', 'auto', or 'manual'")
+    preprocessing_needed: Optional[Dict[str, Any]] = Field(default=None, description="What preprocessing is recommended")
+    preprocessing_approved: List[str] = Field(default_factory=list, description="Which preprocessing steps user approved")
+    preprocessing_applied: Optional[Dict[str, Any]] = Field(default=None, description="What preprocessing was actually applied")
+    preprocessed_dataframe: Optional[Any] = Field(default=None, description="DataFrame after preprocessing (for modeling)")
+    needs_preprocessing_confirmation: bool = Field(default=False, description="Whether to pause and ask user for preprocessing approval")
+    
+    # Code outputs (for UI display)
+    profiling_code: Optional[str] = Field(default=None, description="Generated profiling code")
+    preprocessing_code: Optional[str] = Field(default=None, description="Generated preprocessing code")
+    modeling_code: Optional[str] = Field(default=None, description="Generated model training code")
+    preprocessing_reuse_prompt: Optional[str] = Field(default=None, description="Prompt asking user if they want to reuse existing preprocessed data")
+    
+    # Preprocessing Agent fields (NEW - for LLM-powered preprocessing)
+    data_profile: Optional[Dict[str, Any]] = Field(default=None, description="Comprehensive data profile with stats and quality metrics")
+    data_summary: Optional[Dict[str, Any]] = Field(default=None, description="Quick summary of data quality (from ProfilingAgent)")
+    quality_assessment: Optional[Dict[str, Any]] = Field(default=None, description="LLM-generated quality assessment and recommendations")
+    preprocessing_code: Optional[str] = Field(default=None, description="Generated Python code for preprocessing transformations")
+    preprocessing_intent: Optional[str] = Field(default=None, description="Detected intent: 'explore', 'analyze', 'model'")
+    
+    # Modeling Agent fields (NEW - for ML model training and results)
+    model_results: Optional[Dict[str, Any]] = Field(default=None, description="Model training results including metrics, predictions, feature importance")
+    model_summary: Optional[str] = Field(default=None, description="Formatted model summary output (like statsmodels/sklearn summary)")
+    
     # Control flow
     errors: List[str] = Field(default_factory=list)
     next_agent: Optional[str] = None
@@ -98,13 +125,15 @@ class AgentState(BaseModel):
         
         Automatically trims history to max_history_size.
         """
-        if self.query_results is not None or self.visualization_path:
+        if self.query_results is not None or self.visualization_path or self.model_results:
             snapshot = ConversationSnapshot(
                 query=self.query,
                 sql_query=self.sql_query,
                 dataframe=self.query_results if hasattr(self.query_results, 'shape') else None,  # Only store DataFrames
                 visualization_path=self.visualization_path,
                 visualization_code=self.visualization_code,
+                model_results=self.model_results,
+                model_summary=self.model_summary,
                 response=self.final_response,
                 snapshot_id=len(self.state_history) + 1
             )

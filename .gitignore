@@ -225,6 +225,7 @@ testing/rag_documents/
 # Generated outputs
 outputs/
 faiss_index/
+lancedb/
 *.png
 *.jpg
 *.jpeg

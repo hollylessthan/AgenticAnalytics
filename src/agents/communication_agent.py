@@ -13,7 +13,7 @@ Key responsibilities:
 """
 
 import pandas as pd
-from typing import Any, Optional
+from typing import Any, Optional, Dict, List
 from langchain_core.prompts import ChatPromptTemplate
 
 from src.agents.base import BaseAgent, AgentState
@@ -28,6 +28,15 @@ class CommunicationAgent(BaseAgent):
         """Initialize the communication agent."""
         super().__init__(config)
         self.llm = get_llm()
+        
+        # Initialize RAG for evaluation metrics interpretation
+        try:
+            from src.rag.rag_system import RAGSystem
+            self.rag_system = RAGSystem(config)
+            print("[CommunicationAgent] RAG system initialized for metrics interpretation")
+        except Exception as e:
+            print(f"[CommunicationAgent] RAG system not available: {e}")
+            self.rag_system = None
         
         # System prompt for response synthesis
         self.prompt = ChatPromptTemplate.from_messages([
@@ -72,6 +81,21 @@ Your task: Synthesize this into a natural, helpful response for the user."""),
     def _execute_impl(self, state: AgentState) -> AgentState:
         """Implementation of communication execution (wrapped in retry logic)."""
         try:
+            # Check if preprocessing reuse confirmation is needed
+            if state.needs_preprocessing_confirmation and state.preprocessing_reuse_prompt:
+                print("[CommunicationAgent] 🔧 Displaying preprocessing reuse confirmation")
+                state.final_response = state.preprocessing_reuse_prompt
+                state.agent_chain.append("communication_agent")
+                return state
+            
+            # Check if preprocessing confirmation is needed (fresh preprocessing)
+            if state.needs_preprocessing_confirmation and state.preprocessing_needed:
+                print("[CommunicationAgent] ⏸ Pausing for preprocessing confirmation")
+                # Don't generate a response - just pass through so UI can show confirmation dialog
+                state.final_response = None  # Clear any previous response
+                state.agent_chain.append("communication_agent")
+                return state
+            
             # Build data summary from available information
             data_summary = self._build_data_summary(state)
             
@@ -129,7 +153,12 @@ Your task: Synthesize this into a natural, helpful response for the user."""),
         if state.analysis_results:
             sections.append(f"Analysis Findings:\n{state.analysis_results}")
         
-        # 3. Visualization Info
+        # 3. Model Results (with RAG-powered interpretation)
+        if hasattr(state, 'model_results') and state.model_results:
+            model_summary = self._summarize_model_results(state.model_results)
+            sections.append(model_summary)
+        
+        # 4. Visualization Info
         if state.visualization_paths:
             viz_info = f"Visualizations created: {', '.join(state.visualization_paths)}"
             sections.append(viz_info)
@@ -236,6 +265,119 @@ Your task: Synthesize this into a natural, helpful response for the user."""),
         if state.visualization_paths:
             parts.append(f"Created {len(state.visualization_paths)} visualization(s).")
         
+        return " ".join(parts)
+    
+    def _summarize_model_results(self, model_results: Dict[str, Any]) -> str:
+        """Summarize model training results with RAG-powered metrics interpretation.
+        
+        Args:
+            model_results: Dictionary with model training results
+            
+        Returns:
+            Formatted summary string
+        """
+        sections = []
+        
+        # Model selection summary
+        model_name = model_results.get('selected_model', 'Unknown')
+        sections.append(f"Model Training Results:\n")
+        sections.append(f"Selected Model: {model_name}")
+        
+        # Get metrics
+        metrics = model_results.get('metrics', {})
+        
+        if metrics and self.rag_system:
+            # Use RAG to get interpretation guidance for metrics
+            try:
+                metrics_interpretation = self._rag_interpret_metrics(metrics, model_name)
+                if metrics_interpretation:
+                    sections.append("\nPerformance Metrics (with interpretation):")
+                    sections.append(metrics_interpretation)
+                else:
+                    # Fallback: simple metrics display
+                    sections.append("\nPerformance Metrics:")
+                    for metric_name, value in metrics.items():
+                        sections.append(f"  {metric_name}: {value}")
+            except Exception as e:
+                print(f"[CommunicationAgent] RAG metrics interpretation failed: {e}")
+                # Fallback: simple metrics display
+                sections.append("\nPerformance Metrics:")
+                for metric_name, value in metrics.items():
+                    sections.append(f"  {metric_name}: {value}")
+        elif metrics:
+            # No RAG available, simple display
+            sections.append("\nPerformance Metrics:")
+            for metric_name, value in metrics.items():
+                sections.append(f"  {metric_name}: {value}")
+        
+        # Add interpretation from model card if available
+        if model_results.get('interpretation'):
+            sections.append(f"\nModel Interpretation:\n{model_results['interpretation']}")
+        
+        # Add feature importance if available
+        if model_results.get('feature_importance'):
+            sections.append(f"\nFeature Importance: {model_results['feature_importance']}")
+        
+        return "\n".join(sections)
+    
+    def _rag_interpret_metrics(self, metrics: Dict[str, Any], model_name: str) -> str:
+        """Use RAG to retrieve interpretation guidance for evaluation metrics.
+        
+        Args:
+            metrics: Dictionary of metric names and values
+            model_name: Name of the model
+            
+        Returns:
+            Interpretation text
+        """
+        if not self.rag_system:
+            return ""
+        
+        # Build query for each metric type
+        interpretations = []
+        
+        for metric_name, value in metrics.items():
+            # Query RAG for this metric's interpretation
+            metric_lower = metric_name.lower()
+            
+            # Map metric names to RAG queries
+            if 'accuracy' in metric_lower or 'precision' in metric_lower or 'recall' in metric_lower or 'f1' in metric_lower:
+                query = f"{metric_name} classification evaluation interpretation"
+            elif 'auc' in metric_lower or 'roc' in metric_lower:
+                query = "AUC-ROC classification evaluation interpretation"
+            elif 'r2' in metric_lower or 'r²' in metric_lower or 'r-squared' in metric_lower:
+                query = "R² r-squared regression evaluation interpretation"
+            elif 'mse' in metric_lower or 'rmse' in metric_lower or 'mae' in metric_lower:
+                query = f"{metric_name} regression evaluation interpretation"
+            else:
+                continue  # Skip unknown metrics
+            
+            try:
+                # Retrieve evaluation metric method cards
+                method_cards = self.rag_system.retrieve_method_cards(
+                    query=query,
+                    data_profile=None,
+                    k=1,
+                    filter_dict={"topic": "evaluation"}
+                )
+                
+                if method_cards:
+                    card, score = method_cards[0]
+                    interpretation_guide = card.interpretation_guide or card.when_to_use
+                    
+                    # Format the interpretation
+                    interpretations.append(f"  {metric_name}: {value}")
+                    if interpretation_guide:
+                        # Truncate interpretation to keep response concise
+                        guide_summary = interpretation_guide[:200]
+                        interpretations.append(f"    → {guide_summary}...")
+            except Exception as e:
+                print(f"[CommunicationAgent] Failed to interpret {metric_name}: {e}")
+                # Fallback: just show the metric
+                interpretations.append(f"  {metric_name}: {value}")
+        
+        return "\n".join(interpretations) if interpretations else ""
+
         if state.errors:
             parts.append(f"Note: Encountered {len(state.errors)} issue(s) during processing.")
         

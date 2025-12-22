@@ -1,0 +1,126 @@
+# Preprocessing: Feature Scaling Method Cards
+
+- method_name: "StandardScaler"
+  category: "preprocessing_scaling"
+  problem_type: "feature_scaling"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    sample_size_recommended: 30
+    normality_required: false
+    handles_non_normal: true
+    handles_missing: false
+    requires_complete_data: true
+    handles_categorical: false
+    requires_numeric: true
+    supports_binary_target: false
+    supports_multiclass_target: false
+    supports_continuous_target: false
+    requires_independence: false
+    handles_outliers: false
+    requires_balanced_classes: false
+  assumptions:
+    - "Features are roughly Gaussian distributed (for best results)"
+    - "No severe outliers"
+  when_to_use: "Most ML algorithms (SVM, LogisticRegression, KNN, PCA, neural networks). Features have different scales. Data is roughly normal or symmetric. Need mean=0, std=1 normalization."
+  when_not_to_use: "Severe outliers present (use RobustScaler). Data is highly skewed (transform first or use RobustScaler). Tree-based models (scaling not needed). Need range [0,1] (use MinMaxScaler)."
+  alternatives: ["RobustScaler", "MinMaxScaler", "MaxAbsScaler", "Normalizer"]
+  code_example: |
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    # Mean ≈ 0, Std ≈ 1
+  parameters:
+    with_mean: "Center data to mean=0 (default: True)"
+    with_std: "Scale to std=1 (default: True)"
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.StandardScaler.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  library_version: "1.8.0"
+  supporting_excerpt: "Standardize features by removing the mean and scaling to unit variance. The standard score of a sample x is calculated as z = (x - u) / s where u is the mean and s is the standard deviation."
+  last_updated: "2025-12-21"
+  confidence: 1.0
+
+- method_name: "MinMaxScaler"
+  category: "preprocessing_scaling"
+  problem_type: "feature_scaling"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    sample_size_recommended: 30
+    normality_required: false
+    handles_non_normal: true
+    handles_missing: false
+    requires_complete_data: true
+    handles_categorical: false
+    requires_numeric: true
+    supports_binary_target: false
+    supports_multiclass_target: false
+    supports_continuous_target: false
+    requires_independence: false
+    handles_outliers: false
+    requires_balanced_classes: false
+  assumptions:
+    - "Training and test data have similar min/max ranges"
+    - "No severe outliers"
+  when_to_use: "Need features in specific range [0,1] or [-1,1]. Neural networks with sigmoid/tanh activation. Image data (pixel values). Features have known bounded ranges. KNN, SVM."
+  when_not_to_use: "Severe outliers present (compresses normal values). Future data may exceed training range. Data is highly skewed (transform first). Tree-based models."
+  alternatives: ["StandardScaler", "RobustScaler", "MaxAbsScaler"]
+  code_example: |
+    from sklearn.preprocessing import MinMaxScaler
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    X_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    # All features in [0, 1]
+  parameters:
+    feature_range: "Target range (default: (0, 1))"
+    clip: "Clip values outside range after transform"
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.MinMaxScaler.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  library_version: "1.8.0"
+  supporting_excerpt: "Transform features by scaling each feature to a given range. This estimator scales and translates each feature individually such that it is in the given range on the training set."
+  last_updated: "2025-12-21"
+  confidence: 1.0
+
+- method_name: "RobustScaler"
+  category: "preprocessing_scaling"
+  problem_type: "feature_scaling"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    sample_size_recommended: 30
+    normality_required: false
+    handles_non_normal: true
+    handles_missing: false
+    requires_complete_data: true
+    handles_categorical: false
+    requires_numeric: true
+    supports_binary_target: false
+    supports_multiclass_target: false
+    supports_continuous_target: false
+    requires_independence: false
+    handles_outliers: true
+    requires_balanced_classes: false
+  assumptions:
+    - "Data may contain outliers"
+  when_to_use: "Data has outliers. Skewed distributions. Need robust scaling. SVM, KNN, LogisticRegression with outliers. StandardScaler would be distorted by outliers."
+  when_not_to_use: "No outliers present (StandardScaler is simpler). Tree-based models (scaling not needed). Need specific range like [0,1] (use MinMaxScaler)."
+  alternatives: ["StandardScaler", "MinMaxScaler", "QuantileTransformer"]
+  code_example: |
+    from sklearn.preprocessing import RobustScaler
+    scaler = RobustScaler()
+    X_scaled = scaler.fit_transform(X_train)
+    # Uses median and IQR instead of mean and std
+  parameters:
+    with_centering: "Center data to median=0 (default: True)"
+    with_scaling: "Scale using IQR (default: True)"
+    quantile_range: "Quantile range for IQR (default: (25.0, 75.0))"
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.RobustScaler.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  library_version: "1.8.0"
+  supporting_excerpt: "Scale features using statistics that are robust to outliers. This Scaler removes the median and scales the data according to the quantile range (defaults to IQR: Interquartile Range)."
+  last_updated: "2025-12-21"
+  confidence: 1.0

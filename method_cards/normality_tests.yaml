@@ -1,0 +1,132 @@
+# Normality Test Method Cards
+
+- method_name: "Shapiro-Wilk"
+  category: "stats_normality"
+  problem_type: "normality_test"
+  data_conditions:
+    sample_size_min: 3
+    sample_size_max: 5000
+    sample_size_recommended: 2000
+    normality_required: false  # We're TESTING for normality
+    handles_non_normal: true
+    handles_missing: false
+    requires_complete_data: true
+    handles_categorical: false
+    requires_numeric: true
+    supports_binary_target: false
+    supports_multiclass_target: false
+    supports_continuous_target: false
+    requires_independence: true
+    handles_outliers: true
+    requires_balanced_classes: false
+  assumptions:
+    - "Data is univariate (single variable)"
+    - "Samples are independent"
+  when_to_use: "Test if data follows normal distribution. Most powerful normality test for small-medium samples (n=3 to 5000). Use before choosing parametric vs non-parametric tests. Recommended for samples < 2000."
+  when_not_to_use: "Very large samples (n > 5000) - computationally expensive and overly sensitive. Multivariate data - use Mardia's test instead. When you need to test against specific distributions besides normal."
+  alternatives: ["Anderson-Darling", "Kolmogorov-Smirnov", "Jarque-Bera", "D'Agostino-Pearson"]
+  code_example: |
+    from scipy.stats import shapiro
+    stat, p_value = shapiro(data)
+    alpha = 0.05
+    if p_value > alpha:
+        print(f'Data looks normal (p={p_value:.4f})')
+    else:
+        print(f'Data not normal (p={p_value:.4f})')
+  parameters:
+    x: "Array of sample data (1-D)"
+  source_url: "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.shapiro.html"
+  source_license: "BSD-3-Clause"
+  library: "scipy"
+  library_version: "1.11.0"
+  supporting_excerpt: "The Shapiro-Wilk test tests the null hypothesis that the data was drawn from a normal distribution. The test statistic is based on the correlation between the data and the corresponding normal scores."
+  last_updated: "2025-12-21"
+  confidence: 1.0
+
+- method_name: "Anderson-Darling"
+  category: "stats_normality"
+  problem_type: "normality_test"
+  data_conditions:
+    sample_size_min: 8
+    sample_size_max: null
+    sample_size_recommended: 1000
+    normality_required: false
+    handles_non_normal: true
+    handles_missing: false
+    requires_complete_data: true
+    handles_categorical: false
+    requires_numeric: true
+    supports_binary_target: false
+    supports_multiclass_target: false
+    supports_continuous_target: false
+    requires_independence: true
+    handles_outliers: true
+    requires_balanced_classes: false
+  assumptions:
+    - "Data is univariate"
+    - "Samples are independent"
+  when_to_use: "Test normality with emphasis on tail behavior. Good for any sample size including large n > 5000. More sensitive to deviations in tails than Shapiro-Wilk. Can also test other distributions (exponential, logistic, Gumbel)."
+  when_not_to_use: "Very small samples (n < 8). When you only care about central tendency, not tails. Multivariate data."
+  alternatives: ["Shapiro-Wilk", "Kolmogorov-Smirnov", "Jarque-Bera"]
+  code_example: |
+    from scipy.stats import anderson
+    result = anderson(data, dist='norm')
+    print(f'Statistic: {result.statistic}')
+    for i, (crit_val, sig_level) in enumerate(zip(result.critical_values, result.significance_level)):
+        if result.statistic < crit_val:
+            print(f'Data looks normal at {sig_level}% significance')
+            break
+  parameters:
+    x: "Array of sample data"
+    dist: "Distribution type ('norm', 'expon', 'logistic', 'gumbel')"
+  source_url: "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.anderson.html"
+  source_license: "BSD-3-Clause"
+  library: "scipy"
+  library_version: "1.11.0"
+  supporting_excerpt: "The Anderson-Darling test tests the null hypothesis that a sample is drawn from a population that follows a particular distribution. It is a modification of the Kolmogorov-Smirnov test that gives more weight to the tails."
+  last_updated: "2025-12-21"
+  confidence: 1.0
+
+- method_name: "Kolmogorov-Smirnov"
+  category: "stats_normality"
+  problem_type: "normality_test"
+  data_conditions:
+    sample_size_min: 20
+    sample_size_max: null
+    sample_size_recommended: 1000
+    normality_required: false
+    handles_non_normal: true
+    handles_missing: false
+    requires_complete_data: true
+    handles_categorical: false
+    requires_numeric: true
+    supports_binary_target: false
+    supports_multiclass_target: false
+    supports_continuous_target: false
+    requires_independence: true
+    handles_outliers: true
+    requires_balanced_classes: false
+  assumptions:
+    - "Data is univariate and continuous"
+    - "Samples are independent"
+  when_to_use: "Test if data follows any continuous distribution (not just normal). Compare two samples. General-purpose goodness-of-fit test. Works with any sample size."
+  when_not_to_use: "Small samples (n < 20) - low statistical power. When you need high sensitivity to tail deviations (use Anderson-Darling). Testing specifically for normality in small-medium samples (use Shapiro-Wilk)."
+  alternatives: ["Shapiro-Wilk", "Anderson-Darling", "Chi-square goodness-of-fit"]
+  code_example: |
+    from scipy.stats import kstest, norm
+    # Test against normal distribution
+    mean, std = data.mean(), data.std()
+    stat, p_value = kstest(data, lambda x: norm.cdf(x, mean, std))
+    if p_value > 0.05:
+        print(f'Data looks normal (p={p_value:.4f})')
+  parameters:
+    rvs: "Sample data or random variable function"
+    cdf: "Cumulative distribution function to test against"
+    alternative: "Defines alternative hypothesis ('two-sided', 'less', 'greater')"
+  source_url: "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.kstest.html"
+  source_license: "BSD-3-Clause"
+  library: "scipy"
+  library_version: "1.11.0"
+  supporting_excerpt: "The one-sample Kolmogorov-Smirnov test compares the underlying distribution of a sample with a specified distribution. The two-sample test compares the underlying distributions of two independent samples."
+  last_updated: "2025-12-21"
+  confidence: 1.0
