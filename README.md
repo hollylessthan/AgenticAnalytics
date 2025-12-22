@@ -20,8 +20,9 @@
 │  - Multi-agent orchestration                 │
 │  - Query classification & routing            │
 │  - SQL generation & execution                │
+│  - Data profiling, preprocessing, modeling   │
 │  - Analysis & visualization agents           │
-│  - RAG-powered schema context                │
+│  - RAG-powered schema & method cards         │
 │  - Result caching & security                 │
 └──────────────────────────────────────────────┘
 ```
@@ -30,11 +31,9 @@
 
 - **Multi-Agent Architecture**: Specialized agents for SQL, profiling, preprocessing, modeling, analysis, visualization, and communication
 - **Hybrid Routing System**: 3-tier intelligent query classification (Regex -> Keywords -> LLM) for optimal performance
-- **RAG Integration**: Automatic schema indexing and semantic search for context-aware responses
-- **ML Pipeline Support**: Full machine learning workflow with data profiling, preprocessing confirmation, and automated model training
-- **Human-in-the-Loop**: User confirmation for preprocessing and modeling decisions with transparent recommendations
-- **Error-Aware Retry**: Intelligent code regeneration for preprocessing and modeling agents (fixes common errors automatically)
-- **Method Knowledge Base**: 40+ curated statistical tests and ML algorithms with smart recommendation system
+- **RAG Integration**: Schema indexing and 40+ curated method cards for intelligent statistical/ML recommendations
+- **ML Pipeline Support**: Full workflow with profiling, preprocessing, and model training with error-aware retry
+- **Human-in-the-Loop**: User confirmation for preprocessing decisions with transparent recommendations
 - **Security First**: SQL injection prevention, safe DataFrame handling, query row limits
 - **Smart Caching**: Result caching with configurable limits and concurrent read access
 - **Real-time Visualization**: Inline charts and tables with automatic formatting
@@ -70,18 +69,6 @@ Kendra                    Aurora pgvector        DynamoDB
 Vertex AI                 Azure Cognitive Search
 ```
 
-### Method Knowledge Base
-
-**NEW: Curated Statistical & ML Method Cards** - Intelligent method recommendation system
-
-Agentic Analytics includes a comprehensive knowledge base of 40+ statistical tests, ML algorithms, preprocessing techniques, and evaluation metrics. Each method card provides:
-
-- **Smart Recommendations**: Data-aware retrieval based on sample size, missing values, normality, multicollinearity, etc.
-- **Detailed Guidance**: When to use, assumptions, interpretation guides, and typical use cases
-- **Multi-Package Support**: scikit-learn, scipy, statsmodels integration
-**Coverage**: Regression (OLS, Ridge, Lasso, GLS), ANOVA, t-tests, z-tests, binomial tests, chi-square, evaluation metrics (MSE, R², AUC, Precision, Recall), and more.
-
-See [method_cards/README.md](method_cards/README.md) for details and [docs/METHOD_CARDS.md](docs/METHOD_CARDS.md) for integration guide.
 
 ### Quick Customization
 
@@ -197,13 +184,13 @@ print(result.sql_query)
 print(result.query_results)
 ```
 
-## 🏗️ Core Framework Architecture
+## Core Framework Architecture
 
 **Agentic Analytics** is built on a multi-agent orchestration pattern where specialized agents collaborate to execute analytical workflows:
 
 
 
-## 📚 Documentation
+## Documentation
 
 Complete architecture and implementation details:
 
@@ -225,7 +212,7 @@ Complete architecture and implementation details:
 - [docs/CHANGELOG.md](docs/CHANGELOG.md) - Version history and updates
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) - Contributing guidelines
 
-## 🛠️ Development
+## Development
 
 ### Project Structure
 
@@ -298,7 +285,7 @@ docker run -p 8501:8501 data-copilot
 
 See [docker-compose.yml](docker-compose.yml) for full stack deployment.
 
-## 🔐 Security
+## Security
 
 The Agentic Analytics framework implements multiple security layers:
 
@@ -313,40 +300,27 @@ Data Copilot enforces these policies transparently to users.
 
 See [docs/SQL_SECURITY.md](docs/SQL_SECURITY.md) for detailed security architecture.
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
-## 📄 License
+## License
 
 This project is licensed under the Apache License 2.0 - see [LICENSE](LICENSE) file for details.
 
-## 🙋 Support
+## Support
 
 - **Issues**: Report bugs on [GitHub Issues](https://github.com/hollylessthan/AgenticAnalytics/issues)
 - **Discussions**: Ask questions on [GitHub Discussions](https://github.com/hollylessthan/AgenticAnalytics/discussions)
 - **Documentation**: Check [docs/](docs/) folder for detailed guides
 
-## 📊 Performance Benchmarks
-
-The Agentic Analytics hybrid routing system delivers exceptional performance:
-
-| Query Type | Hybrid Routing | Direct LLM | Speedup |
-|---|---|---|---|
-| Simple SELECT | 2ms (Regex) | 1200ms | **600x** |
-| COUNT/GROUP BY | 5ms (Keywords) | 1150ms | **230x** |
-| Complex JOINs | 80ms (LLM) | 1180ms | **15x** |
-| **Average** | **28ms** | **1177ms** | **42x** |
-
-The hybrid routing system dramatically improves performance by using fast pattern matching for most queries and only invoking the LLM for complex cases requiring semantic understanding.
-
-Data Copilot users benefit from these performance improvements transparently through faster response times.
-
-See [docs/HYBRID_ROUTING_IMPLEMENTATION.md](docs/HYBRID_ROUTING_IMPLEMENTATION.md) for architecture details.
-
-## 🎯 Roadmap
+## Roadmap
 
 **Agentic Analytics** future enhancements:
+- [ ] Advanced modeling capabilities (AutoML, hyperparameter tuning, ensemble methods)
+- [ ] Benchmarking and performance monitoring (execution time tracking, resource usage)
+- [ ] Observability and instrumentation (OpenTelemetry integration, distributed tracing)
+- [ ] LLM guardrails (input/output validation, prompt injection prevention, content filtering)
 - [ ] Real-time query execution with WebSocket support
 - [ ] Advanced anomaly detection with statistical models
 - [ ] Custom dashboard creation and saved analysis templates

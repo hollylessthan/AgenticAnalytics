@@ -534,6 +534,98 @@ Retrieved Context:
 Passed to SQL Agent
 ```
 
+## Method Knowledge Base
+
+Agentic Analytics includes a **curated knowledge base of 40+ statistical tests, ML algorithms, preprocessing techniques, and evaluation metrics**. Each method is represented as a structured "method card" that enables intelligent, data-aware recommendations.
+
+### Method Card System
+
+**Method cards** replace traditional documentation chunking with structured knowledge units that contain:
+
+- **Decision Criteria**: When to use vs when not to use
+- **Data Requirements**: Sample size, normality, missing values, multicollinearity constraints
+- **Implementation Details**: Code examples, parameters, library support (scikit-learn, scipy, statsmodels)
+- **Interpretation Guides**: How to read results, statistical significance, practical implications
+- **Typical Use Cases**: Real-world scenarios and applications
+
+### Coverage
+
+**Machine Learning Models**:
+- Classification: Logistic Regression, Random Forest, SVM, Gradient Boosting
+- Regression: OLS, Ridge (L2), Lasso (L1), Elastic Net, GLS (heteroscedasticity)
+
+**Statistical Tests**:
+- Normality: Shapiro-Wilk, Anderson-Darling, Kolmogorov-Smirnov
+- Group Comparison: t-tests (independent/paired), ANOVA, Kruskal-Wallis, Mann-Whitney
+- Correlation: Pearson, Spearman, Kendall
+- Categorical: Chi-Square, Fisher's Exact
+
+**Preprocessing Methods**:
+- Imputation: SimpleImputer (mean/median/mode), KNN Imputer, Iterative Imputer
+- Scaling: StandardScaler, MinMaxScaler, RobustScaler
+- Encoding: Label Encoding, One-Hot Encoding
+
+**Evaluation Metrics**:
+- Regression: MSE, RMSE, MAE, R², Adjusted R²
+- Classification: Accuracy, Precision, Recall, F1, AUC-ROC
+
+### Intelligent Retrieval
+
+Method cards are indexed in **LanceDB** (vector store) and retrieved using **RAG-powered semantic search** combined with **constraint-based filtering**:
+
+```
+User Query: "impute missing values in dataset with outliers"
+    ↓
+Data Profile:
+  - 100 samples
+  - 15% missing values
+  - Outliers detected in 3 columns
+  - Non-normal distribution
+    ↓
+RAG Retrieval:
+  1. Semantic search: "impute missing outliers"
+  2. Filter by constraints:
+     - sample_size_min ≤ 100 ≤ sample_size_max
+     - handles_missing_values = true
+     - handles_outliers = true
+    ↓
+Top Results:
+  1. SimpleImputer (median) - robust to outliers
+  2. RobustScaler - for later scaling
+  3. KNNImputer - alternative approach
+    ↓
+Return to Preprocessing Agent
+```
+
+### Integration with Agents
+
+**Profiling Agent**:
+- Suggests statistical tests based on data characteristics
+- Recommends correlation methods (Pearson vs Spearman) based on normality
+
+**Preprocessing Agent**:
+- Retrieves imputation methods matched to data profile
+- Selects scaling/encoding techniques appropriate for modeling intent
+
+**Modeling Agent**:
+- Recommends models based on problem type (classification/regression)
+- Filters models by data constraints (sample size, features, multicollinearity)
+- Uses interpretation guides to explain model results
+
+### Method Card Loading
+
+Method cards are loaded from YAML files in `method_cards/` directory:
+
+```bash
+# Load method cards into LanceDB
+python testing/load_method_cards.py
+
+# Test retrieval
+python testing/test_method_card_retrieval.py
+```
+
+See [METHOD_CARDS.md](METHOD_CARDS.md) for complete documentation and [method_cards/README.md](../method_cards/README.md) for card structure.
+
 ## Human-in-the-Loop Architecture
 
 Agentic Analytics incorporates **Human-in-the-Loop (HITL)** capabilities for critical decision points, ensuring user control over data transformations and model training:
@@ -549,12 +641,12 @@ Profiling Agent: Detects data quality issues
     ↓
 Preprocessing Agent: Generates recommendations
     ↓
-⏸️  PAUSE: Show user preprocessing dialog
-    ├─ ☑️ Encode categorical variables
-    ├─ ☑️ Fill missing values
-    ├─ ☑️ Scale features
-    ├─ ☑️ Transform skewed distributions
-    └─ ☑️ Handle outliers
+PAUSE: Show user preprocessing dialog
+    ├─ Encode categorical variables
+    ├─ Fill missing values
+    ├─ Scale features
+    ├─ Transform skewed distributions
+    └─ Handle outliers
     ↓
 User selects desired transformations
     ↓
@@ -686,7 +778,7 @@ class StreamingCallback:
 ```
 User: "Show top 5 products"
     ↓
-[Streaming] Classifying query... ✓ SQL Query
+[Streaming] Classifying query... SQL Query
 [Streaming] Retrieving schema context...
 [Streaming] Generating SQL...
     Generated: SELECT product_id, SUM(quantity) ...

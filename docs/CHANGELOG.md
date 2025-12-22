@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Method Knowledge Base**: Curated knowledge base of 40+ statistical tests, ML algorithms, preprocessing techniques, and evaluation metrics
+  - Created structured method card system with MethodCard schema and DataConditions for constraint-based retrieval
+  - Added YAML method card definitions for imputation (SimpleImputer mean/median/mode), scaling (StandardScaler, MinMaxScaler, RobustScaler), normality tests (Shapiro-Wilk, Anderson-Darling, Kolmogorov-Smirnov), and regression models (OLS, Ridge, Lasso, Elastic Net, GLS)
+  - Implemented LanceDB vector store integration for semantic method card search
+  - Added `load_method_cards.py` to index method cards into LanceDB
+  - Added `test_method_card_retrieval.py` with comprehensive test scenarios (basic retrieval, constraint-based filtering, regression methods, ANOVA tests, evaluation metrics)
+- **Profiling Agent**: Comprehensive data quality assessment agent (read-only analysis)
+  - Generates data profiles with missing values, outliers, normality tests, correlations, and distribution analysis
+  - RAG-powered statistical test suggestions based on data characteristics
+  - Caches data profiles for reuse across preprocessing and modeling workflows
+- **Preprocessing Agent**: RAG-guided data transformation agent with human-in-the-loop confirmation
+  - Uses RAG to select appropriate transformations (imputation, encoding, scaling) based on data profile
+  - Three modes: Confirm (pause for user approval), Auto (apply all), Manual (skip unless requested)
+  - Error-aware retry mechanism (3 attempts) to fix code generation errors automatically
+  - Preprocessing confirmation dialog with data preview table showing top 5 rows
+  - Generates preprocessing recommendations with impact assessment and priority ranking
+- **Modeling Agent**: Intelligent ML model selection and training with error-aware retry
+  - RAG-powered model selection based on problem type (classification/regression) and data characteristics
+  - Automatic intent detection (identifies target variable, problem type, feature columns)
+  - Error-aware code generation with automatic retry (fixes f-string errors, OneHotEncoder API issues, categorical encoding problems)
+  - Generates formatted model summary output (like statsmodels/sklearn summary) with metrics, feature importance, and interpretation guides
+  - Cross-validation and comprehensive evaluation metrics
+- **Documentation Updates**:
+  - Updated QUICKSTART.md with method card loading instructions for both sample data and production setup
+  - Added comprehensive "Method Knowledge Base" section to ARCHITECTURE.md with coverage lists, retrieval workflow, and agent integration details
+  - Updated README.md to consolidate method card mentions and remove awkward standalone section
+  - Integrated preprocessing/modeling/profiling agents into framework description
+
 ### Fixed
 - **Cached Data Workflow**: Fixed visualization, analysis, and communication agents to properly access cached data from previous queries
   - Added missing `visualization_agent` and `analysis_agent` to classifier's conditional edges in orchestrator
@@ -14,8 +43,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added missing `import pandas as pd` in sql_agent.py
   - Updated error display in UI to show actual exception messages instead of hardcoded generic errors
 - **Graph Routing**: Resolved `KeyError: 'visualization_agent'` by enabling direct routing from classifier to visualization and analysis agents
+- **Preprocessing Data Inheritance**: Fixed logic to only reuse preprocessed data for modeling follow-ups, not unrelated queries
+- **State Error Handling**: Fixed `state.error` vs `state.errors` bug in orchestrator (line 556)
+- **UI State Management**: Removed "I couldn't process your request" message when preprocessing confirmation is pending
 
-### Added
+### Changed
+- **Error-Aware Retry**: Extended to preprocessing and modeling agents (previously only SQL, analysis, visualization)
+  - Preprocessing Agent: Regenerates code based on f-string errors, column mismatches, type errors
+  - Modeling Agent: Regenerates code for categorical encoding issues, API compatibility errors, stratification errors
+  - Maximum 3 retry attempts per agent with progressive error feedback to LLM
+- **Method Card Integration**: RAG system now supports specialized retrieval methods:
+  - `retrieve_methods_for_preprocessing()` - filters by preprocessing categories
+  - `retrieve_methods_for_modeling()` - filters by model categories
+  - `retrieve_methods_for_statistics()` - filters by statistical test categories
+- **Data Profile Reuse**: Profiling Agent caches data profiles to avoid redundant analysis across agents
+- **Human-in-the-Loop Enhancements**: Preprocessing confirmation includes data preview and reuse detection for existing preprocessed data
+
+### Removed
+- **Obsolete Files**: Removed `testing/scrape_ml_docs.py`, `testing/evaluate_rag.py`, `docs/RAG_ENHANCEMENTS.md`, `docs/RAG_INTEGRATION_SUMMARY.md`
+- **Documentation Consolidation**: Merged RAG documentation into single comprehensive `RAG_SYSTEM.md`
+
+### Added (Previous Updates)
 - **Inline Code Display**: Added expandable sections in UI to display generated SQL queries, analysis code, and visualization code
 - **Google Vertex AI Vector Search**: Managed vector search service for GCP with support for 1M+ documents
 - **AWS Vector Store Implementations**: Added Kendra, Aurora pgvector, and DynamoDB vector store support for AWS-native deployments
