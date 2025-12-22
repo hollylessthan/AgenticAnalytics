@@ -16,7 +16,7 @@ This document describes the **Agentic Analytics core architecture**. The UI laye
 ┌─────────────────────────────────────────────────────┐
 │           Data Copilot (UI Layer)                   │
 │       Streamlit Chat Interface                      │
-│   (User input, visualization display, chat hist)   │
+│   (User input, visualization display, chat hist)    │
 └──────────────────┬──────────────────────────────────┘
                    │ (Delegates analytical work)
                    ▼
@@ -24,30 +24,34 @@ This document describes the **Agentic Analytics core architecture**. The UI laye
 │    Agentic Analytics (Core Framework)               │
 │        Agent Orchestrator (LangGraph)               │
 │                                                     │
-│  ┌─────────────────────────────────────────────┐   │
-│  │  1. Query Classification (Hybrid Router)    │   │
-│  │     ├─ Regex Rules (Fast)                  │   │
-│  │     ├─ Keyword Matching (Medium)           │   │
-│  │     └─ LLM Classification (Accurate)       │   │
-│  └─────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────┐    │
+│  │  1. Query Classification (Hybrid Router)    │    │
+│  │     ├─ Regex Rules (Fast)                   │    │
+│  │     ├─ Keyword Matching (Medium)            │    │
+│  │     └─ LLM Classification (Accurate)        │    │
+│  └─────────────────────────────────────────────┘    │
 │                   │                                 │
 │                   ▼                                 │
-│  ┌─────────────────────────────────────────────┐   │
-│  │  2. Agent Selection & Routing               │   │
-│  │     ├─ SQL Agent                           │   │
-│  │     ├─ Analysis Agent                      │   │
-│  │     ├─ Visualization Agent                 │   │
-│  │     └─ Communication Agent                 │   │
-│  └─────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────┐    │
+│  │  2. Agent Selection & Routing               │    │
+│  │     ├─ SQL Agent                            │    │
+│  │     ├─ Profiling Agent                      │    │
+│  │     ├─ Preprocessing Agent                  │    │
+│  │     ├─ Modeling Agent                       │    │
+│  │     ├─ Analysis Agent                       │    │
+│  │     ├─ Visualization Agent                  │    │
+│  │     └─ Communication Agent                  │    │
+│  └─────────────────────────────────────────────┘    │
 │                   │                                 │
 │                   ▼                                 │
-│  ┌─────────────────────────────────────────────┐   │
-│  │  3. Agent Execution & Result Aggregation   │   │
-│  │     ├─ Context passing                     │   │
-│  │     ├─ Streaming callbacks                 │   │
-│  │     └─ Error handling                      │   │
-│  └─────────────────────────────────────────────┘   │
-└──────────────┬───────────────────────────────────────┘
+│  ┌─────────────────────────────────────────────┐    │
+│  │  3. Agent Execution & Result Aggregation    │    │
+│  │     ├─ Context passing                      │    │
+│  │     ├─ Streaming callbacks                  │    │
+│  │     ├─ Error-aware retry                    │    │
+│  │     └─ Error handling                       │    │
+│  └─────────────────────────────────────────────┘    │
+└──────────────┬──────────────────────────────────────┘
                │
    ┌───────────┼───────────┬────────────────┐
    │           │           │                │
@@ -56,10 +60,10 @@ This document describes the **Agentic Analytics core architecture**. The UI laye
 │  RAG     │ │Database  │ │LLM      │ │Cache        │
 │System    │ │Manager   │ │Factory  │ │Manager      │
 ├──────────┤ ├──────────┤ ├─────────┤ ├─────────────┤
-│-Vector   │ │-Schema   │ │-OpenAI  │ │-Query       │
-│ Store    │ │-Queries  │ │-Claude  │ │ Results     │
-│-Indexing │ │-Metadata │ │-Google  │ │-Policies    │
-│-Retrieval│ │-Pooling  │ │-Bedrock │ │-Concurrency │
+│-Schema   │ │-Schema   │ │-OpenAI  │ │-Query       │
+│ Context  │ │-Queries  │ │-Claude  │ │ Results     │
+│-Method   │ │-Metadata │ │-Google  │ │-Policies    │
+│ Cards    │ │-Pooling  │ │-Bedrock │ │-Concurrency │
 └──────────┘ └──────────┘ └─────────┘ └─────────────┘
    │           │
    │           ▼
@@ -74,8 +78,9 @@ This document describes the **Agentic Analytics core architecture**. The UI laye
    │
    ▼
 ┌──────────────────────────────────────────────────────┐
-│          Vector Stores (FAISS / Weaviate)            │
+│    Vector Stores (LanceDB / FAISS / Weaviate)        │
 │  - Database schema embeddings                        │
+│  - Method cards (40+ ML/stats algorithms)            │
 │  - Query example embeddings                          │
 │  - Best practice documentation                       │
 └──────────────────────────────────────────────────────┘

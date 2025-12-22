@@ -4,7 +4,7 @@
 
 > A core framework for agent-assisted analytical workflows, with a reference user interface called **Data Copilot**.
 
-**Agentic Analytics** is a core analytics framework that orchestrates role-based agents to support multi-step analytical workflows, including SQL execution, result analysis, visualization, and human-readable summaries.
+**Agentic Analytics** is a core analytics framework that orchestrates specialized agents to support multi-step analytical workflows, including SQL execution, statistical analysis, predictive modeling, visualization, and human-readable summaries.
 
 **Data Copilot** is the reference user interface built on top of Agentic Analytics. It provides an interactive experience for querying, validating, and exploring analytical data while the core framework handles planning, execution, and verification behind the scenes.
 
@@ -322,10 +322,8 @@ This project is licensed under the Apache License 2.0 - see [LICENSE](LICENSE) f
 - [ ] Observability and instrumentation (OpenTelemetry integration, distributed tracing)
 - [ ] LLM guardrails (input/output validation, prompt injection prevention, content filtering)
 - [ ] Real-time query execution with WebSocket support
-- [ ] Advanced anomaly detection with statistical models
 - [ ] Custom dashboard creation and saved analysis templates
 - [ ] Multi-user collaboration with role-based access control
-- [ ] Query optimization suggestions and performance profiling
 - [ ] Natural language to dashboard generation
 
 **Data Copilot** roadmap:
