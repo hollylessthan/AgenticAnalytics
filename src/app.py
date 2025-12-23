@@ -618,40 +618,27 @@ def main():
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("Apply Selected Preprocessing", type="primary"):
-                        # Get the selected actions from session state
+                        import copy
+                        state = copy.deepcopy(st.session_state.previous_state)
                         approved_actions = st.session_state.get('selected_preprocessing_actions', [])
-                        
-                        # Update state with approved preprocessing
                         state.preprocessing_approved = approved_actions
                         state.needs_preprocessing_confirmation = False
                         st.session_state.pending_preprocessing = False
-                        
-                        print(f"[DEBUG] Approved preprocessing actions: {approved_actions}")
-                        
-                        # Continue execution by re-running orchestrator
                         try:
-                            # Continue from where we left off
                             result = st.session_state.orchestrator.run(
                                 state.query,
                                 st.session_state.get('conversation_history', []),
                                 previous_state=state
                             )
-                            
-                            # Add response to messages
                             response = result.final_answer or result.final_response or "Preprocessing applied successfully."
                             st.session_state.messages.append({
                                 "role": "assistant",
                                 "content": response,
                                 "result": result
                             })
-                            
-                            # Store results
                             st.session_state.last_result = result
                             st.session_state.previous_state = result
-                            
-                            # Clean up
                             del st.session_state.selected_preprocessing_actions
-                            
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error continuing after preprocessing: {e}")

@@ -49,6 +49,9 @@ class PreprocessingAgent(BaseAgent):
     
     def _execute_impl(self, state: AgentState) -> AgentState:
         """Implementation of preprocessing execution (wrapped in retry logic)."""
+        print(f"[DEBUG][PreprocessingAgent] needs_preprocessing_confirmation: {getattr(state, 'needs_preprocessing_confirmation', None)}")
+        print(f"[DEBUG][PreprocessingAgent] preprocessing_approved: {getattr(state, 'preprocessing_approved', None)}")
+        print(f"[DEBUG][PreprocessingAgent] preprocessing_needed: {getattr(state, 'preprocessing_needed', None)}")
         try:
             # Add to agent chain
             state.agent_chain.append("preprocessing_agent")

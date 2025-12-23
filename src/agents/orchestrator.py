@@ -605,29 +605,35 @@ class AgentOrchestrator:
         print(f"[Orchestrator] 👤 User Query: {user_query}")
         print(f"{'='*80}\n")
         
-        # Create initial state, optionally inheriting cached data from previous state
         initial_state = AgentState(
             query=user_query,
             user_query=user_query,  # Backward compatibility
             conversation_history=conversation_history or []
         )
-        
-        # Inherit session state from previous query if provided
         if previous_state:
             initial_state.cached_dataframe = previous_state.cached_dataframe
             initial_state.last_sql_query = previous_state.last_sql_query
             initial_state.current_visualization_code = previous_state.current_visualization_code
-            
-            # Inherit preprocessing state for multi-turn modeling workflows
             initial_state.preprocessed_dataframe = previous_state.preprocessed_dataframe
             initial_state.data_profile = previous_state.data_profile
             initial_state.preprocessing_applied = previous_state.preprocessing_applied
-            
-            # Inherit model state for follow-up questions
             initial_state.model_results = previous_state.model_results
             initial_state.model_summary = previous_state.model_summary
-            
-            print(f"[Orchestrator] Inherited session state from previous query")
+            initial_state.plan_type = previous_state.plan_type
+            initial_state.preprocessing_mode = previous_state.preprocessing_mode
+            initial_state.preprocessing_needed = previous_state.preprocessing_needed
+            initial_state.preprocessing_approved = previous_state.preprocessing_approved
+            initial_state.needs_preprocessing_confirmation = previous_state.needs_preprocessing_confirmation
+            initial_state.preprocessing_reuse_prompt = getattr(previous_state, 'preprocessing_reuse_prompt', None)
+            initial_state.preprocessing_intent = getattr(previous_state, 'preprocessing_intent', None)
+            initial_state.errors = list(getattr(previous_state, 'errors', []))
+            initial_state.agent_chain = list(getattr(previous_state, 'agent_chain', []))
+            initial_state.metadata = dict(getattr(previous_state, 'metadata', {}))
+            initial_state.state_history = list(getattr(previous_state, 'state_history', []))
+            initial_state.max_history_size = getattr(previous_state, 'max_history_size', 10)
+            initial_state.referenced_snapshot_id = getattr(previous_state, 'referenced_snapshot_id', None)
+            initial_state.final_response = getattr(previous_state, 'final_response', None)
+            initial_state.final_answer = getattr(previous_state, 'final_answer', None)
         
         final_state = self.graph.invoke(initial_state)
         
