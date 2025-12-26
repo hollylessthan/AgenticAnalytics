@@ -34,15 +34,90 @@ class ProfilingAgent(BaseAgent):
             self.rag_system = None
     
     def execute(self, state: AgentState) -> AgentState:
-        """Execute profiling workflow.
+        """Execute profiling workflow with provenance check.
         
         Args:
             state: Current agent state
-            
         Returns:
             Updated state with data profile
         """
-        return self.execute_with_retry(state, self._execute_impl)
+        return self.execute_with_retry(state, self._execute_impl_with_provenance)
+
+
+    def _compute_profile_provenance(self, df, source_type):
+        # Use a hash of the DataFrame's values and columns for provenance, plus the source type
+        import pandas as pd
+        if not isinstance(df, pd.DataFrame):
+            return None
+        try:
+            hash_val = str(pd.util.hash_pandas_object(df, index=True).sum())
+        except Exception:
+            hash_val = str(df.shape) + str(tuple(df.columns))
+        return f"{source_type}:{hash_val}:{df.shape}:{tuple(df.columns)}"
+
+    def _execute_impl_with_provenance(self, state: AgentState) -> AgentState:
+        # Add to agent chain
+        state.agent_chain.append("profiling_agent")
+
+        # Get data source and type
+        data_source = None
+        source_type = None
+        if state.preprocessed_dataframe is not None:
+            data_source = state.preprocessed_dataframe
+            source_type = "preprocessed"
+            print("[ProfilingAgent] Profiling preprocessed dataframe")
+        elif state.query_results is not None:
+            data_source = state.query_results
+            source_type = "query_results"
+        elif state.cached_dataframe is not None:
+            data_source = state.cached_dataframe
+            source_type = "cached"
+            print("[ProfilingAgent] Profiling cached dataframe")
+        else:
+            raise ValueError("No data available for profiling")
+
+        df = self._prepare_dataframe(data_source)
+        provenance = self._compute_profile_provenance(df, source_type)
+
+        # Check provenance: only skip if profile exists and provenance matches
+        if state.data_profile and state.data_profile.get("profile_provenance") == provenance:
+            print(f"[ProfilingAgent] Using cached data profile (provenance match, source: {source_type})")
+            return state
+
+        if df.empty:
+            raise ValueError("DataFrame is empty, cannot profile")
+
+        # Generate comprehensive data profile
+        print(f"[ProfilingAgent] Generating data profile for {len(df)} rows, {len(df.columns)} columns... (source: {source_type})")
+        state.data_profile = self._generate_data_profile(df)
+        state.data_profile["profile_provenance"] = provenance
+        state.data_profile["profile_source_type"] = source_type
+
+        # Add RAG-powered statistical test suggestions
+        if self.rag_system:
+            try:
+                test_suggestions = self._suggest_statistical_tests(state.data_profile, state.query)
+                if test_suggestions:
+                    state.data_profile["suggested_tests"] = test_suggestions
+                    print(f"[ProfilingAgent] RAG suggested {len(test_suggestions)} statistical tests")
+            except Exception as e:
+                print(f"[ProfilingAgent] RAG test suggestions failed: {e}")
+
+        # Create summary for quick access
+        state.data_summary = {
+            "rows": len(df),
+            "columns": len(df.columns),
+            "missing_pct": state.data_profile["missing_values"]["total_pct"],
+            "has_duplicates": state.data_profile["duplicates"]["has_duplicates"],
+            "has_outliers": state.data_profile["has_outliers"],
+            "has_non_normal": state.data_profile["has_non_normal"],
+            "needs_scaling": state.data_profile["needs_scaling"],
+            "has_quality_issues": self._has_quality_issues(state.data_profile)
+        }
+
+        print(f"[ProfilingAgent] Profile complete. Quality issues: {state.data_summary['has_quality_issues']} (source: {source_type})")
+
+        return state
     
     def _execute_impl(self, state: AgentState) -> AgentState:
         """Implementation of profiling execution (wrapped in retry logic)."""

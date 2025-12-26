@@ -251,7 +251,7 @@ def main():
         
         # Initialize systems on app load
         if st.session_state.orchestrator is None or st.session_state.rag_system is None:
-            with st.spinner("🔄 Initializing systems..."):
+            with st.spinner("Initializing systems..."):
                 if initialize_systems():
                     st.success("✅ Orchestrator & RAG initialized")
                 else:

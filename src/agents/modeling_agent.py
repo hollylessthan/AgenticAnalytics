@@ -65,11 +65,18 @@ class ModelingAgent(BaseAgent):
             return pd.DataFrame([data])
     
     def _execute_impl(self, state: AgentState) -> AgentState:
-        """Implementation of modeling execution (wrapped in retry logic)."""
+        """Implementation of modeling execution (wrapped in retry logic).
+        Expects state.data_profile to be up-to-date and post-preprocessing if preprocessing was performed.
+        """
         try:
             # Add to agent chain
             state.agent_chain.append("modeling_agent")
-            
+
+            # Assert or warn if data_profile is missing or not post-preprocessing
+            if not state.data_profile:
+                raise ValueError("[ModelingAgent] No data_profile found. ProfilingAgent must run after preprocessing.")
+            # Optionally, check for provenance flag here if implemented
+
             # Get data source - prefer preprocessed data if available
             data_source = None
             if state.preprocessed_dataframe is not None:
@@ -82,12 +89,12 @@ class ModelingAgent(BaseAgent):
                 print("[ModelingAgent] Using cached_dataframe as data source")
             else:
                 raise ValueError("No data available for modeling")
-            
+
             df = self._prepare_dataframe(data_source)
-            
+
             if df.empty:
                 raise ValueError("DataFrame is empty, cannot train model")
-            
+
             # Step 1: Detect modeling intent and problem type
             modeling_intent = self._detect_modeling_intent(
                 query=state.query,
@@ -95,7 +102,7 @@ class ModelingAgent(BaseAgent):
                 conversation_history=state.conversation_history
             )
             print(f"[ModelingAgent] Detected intent: {modeling_intent}")
-            
+
             # Step 2: RAG-based model selection
             if self.rag_system:
                 selected_models = self._rag_select_models(
@@ -107,21 +114,21 @@ class ModelingAgent(BaseAgent):
             else:
                 # Fallback: LLM-only selection
                 selected_models = self._llm_select_models(state.query, df, modeling_intent)
-            
+
             if not selected_models:
                 raise ValueError("No suitable models found for this problem")
-            
+
             print(f"[ModelingAgent] Selected {len(selected_models)} candidate model(s)")
-            
+
             # Step 3: Generate and execute training code with error-aware retries
             best_model = selected_models[0]  # Use top-ranked model
             print(f"[ModelingAgent] Training model: {best_model['name']}")
-            
+
             max_code_retries = 3
             training_results = None
             error_message = None
             failed_code = None
-            
+
             for attempt in range(max_code_retries):
                 try:
                     if attempt == 0:
@@ -143,37 +150,36 @@ class ModelingAgent(BaseAgent):
                             error_message=error_message,
                             failed_code=failed_code
                         )
-                    
+
                     # Store code in state for UI display
                     state.modeling_code = training_code
-                    
+
                     # Execute training code
                     training_results = self._execute_training_code(training_code, df)
-                    
+
                     if 'error' not in training_results:
                         print(f"[ModelingAgent] Successfully trained model")
                         break
                     else:
                         error_message = training_results.get('error', 'Unknown error')
                         failed_code = training_code
-                        
+
                 except Exception as e:
                     error_message = str(e)
                     failed_code = training_code if 'training_code' in locals() else None
                     if attempt == max_code_retries - 1:
                         raise
-            
+
             if training_results is None or 'error' in training_results:
                 raise ValueError(f"Failed to train model after {max_code_retries} attempts")
 
-            
             # Generate model summary (like statsmodels/sklearn output)
             model_summary = self._generate_model_summary(
                 model_info=best_model,
                 training_results=training_results,
                 modeling_intent=modeling_intent
             )
-            
+
             # Step 4: Store results in state
             state.model_results = {
                 "selected_model": best_model['name'],

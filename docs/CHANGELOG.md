@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+#### Knowledge Base Deduplication
+- **Duplicate Knowledge Prevention**: Updated `testing/load_method_cards.py` and `testing/load_rag_documents.py` to avoid loading duplicate method cards and RAG documents into the vector store. Deduplication logic ensures only unique knowledge entries are indexed, improving retrieval quality and storage efficiency.
+#### Profiling & Workflow Robustness
+- **Data Profile Provenance**: Profiling agent now uses a robust `profile_provenance` field, which includes both a hash of the profiled DataFrame and the data source type (e.g., preprocessed, query_results, cached). This ensures that data profiles are only reused when both the data and the source match, preventing stale or mismatched profiles.
+- **Automatic Re-Profiling After Preprocessing**: The orchestrator and profiling agent now guarantee that after any preprocessing step, the data is always re-profiled before modeling, ensuring modeling agents always receive a fresh, post-preprocessing profile.
+- **Multiple Data Source Handling**: Provenance logic now supports multiple cached DataFrames and distinguishes between them, preventing accidental profile reuse across different data sources.
+- **Workflow Graph & Routing Fixes**: Improved the orchestrator's workflow graph and routing logic to support correct transitions between profiling, preprocessing, and modeling agents, and to prevent infinite loops or dead-ends in the workflow.
 - **Method Knowledge Base**: Curated knowledge base of 40+ statistical tests, ML algorithms, preprocessing techniques, and evaluation metrics
   - Created structured method card system with MethodCard schema and DataConditions for constraint-based retrieval
   - Added YAML method card definitions for imputation (SimpleImputer mean/median/mode), scaling (StandardScaler, MinMaxScaler, RobustScaler), normality tests (Shapiro-Wilk, Anderson-Darling, Kolmogorov-Smirnov), and regression models (OLS, Ridge, Lasso, Elastic Net, GLS)

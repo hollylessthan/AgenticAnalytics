@@ -111,6 +111,7 @@ class AgentOrchestrator:
                 "preprocessing_agent": "preprocessing_agent",
                 "analysis_agent": "analysis_agent",
                 "visualization_agent": "visualization_agent",
+                "modeling_agent": "modeling_agent",
                 "communication_agent": "communication_agent"
             }
         )
@@ -122,7 +123,8 @@ class AgentOrchestrator:
                 "analysis_agent": "analysis_agent",
                 "modeling_agent": "modeling_agent",
                 "visualization_agent": "visualization_agent",
-                "communication_agent": "communication_agent"
+                "communication_agent": "communication_agent",
+                "profiling_agent": "profiling_agent"
             }
         )
         
@@ -436,7 +438,12 @@ class AgentOrchestrator:
         plan = state.plan_type
         
         if plan == PlanType.SQL_MODELING.value:
-            # Modeling path: profiling → preprocessing → modeling
+            # If preprocessing has already been performed, route to modeling_agent
+            if getattr(state, 'preprocessed_dataframe', None) is not None:
+                print("[Orchestrator] Detected preprocessed data after profiling, routing to modeling_agent")
+                return "modeling_agent"
+            # Otherwise, go to preprocessing_agent
+            print("[Orchestrator] Routing to preprocessing_agent for modeling plan (no preprocessed data yet)")
             return "preprocessing_agent"
         elif plan == PlanType.SQL_PREPROCESSING.value:
             # Preprocessing path: profiling → preprocessing → communication
@@ -469,10 +476,12 @@ class AgentOrchestrator:
         
         # Route based on plan type (classifier already determined the path)
         plan = state.plan_type
-        
+
         if plan == PlanType.SQL_MODELING.value:
-            # Modeling path: preprocessing → modeling
-            return "modeling_agent"
+            # Modeling path: preprocessing → profiling → modeling
+            # Ensures modeling agent always receives a post-preprocessing profile
+            print("[Orchestrator] Routing to profiling_agent after preprocessing for modeling plan")
+            return "profiling_agent"
         elif plan == PlanType.SQL_PREPROCESSING.value:
             # Preprocessing only: preprocessing → communication
             return "communication_agent"

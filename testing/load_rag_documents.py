@@ -113,11 +113,22 @@ def main():
     
     print(f"\n   Found {len(documents)} documents")
     
-    # Index documents
-    print(f"\n📊 Indexing {len(documents)} documents into vector store...")
-    rag_system.index_documents(documents)
+    # Deduplicate documents by content hash before indexing
+    print(f"\n📊 Deduplicating {len(documents)} documents...")
+    seen_hashes = set()
+    deduped_documents = []
+    for doc in documents:
+        content_hash = hash(doc.page_content)
+        if content_hash not in seen_hashes:
+            deduped_documents.append(doc)
+            seen_hashes.add(content_hash)
+    print(f"   {len(deduped_documents)} unique documents (removed {len(documents) - len(deduped_documents)} duplicates)")
+
+    # Index deduplicated documents
+    print(f"\n📊 Indexing {len(deduped_documents)} documents into vector store...")
+    rag_system.index_documents(deduped_documents)
     
-    print("\n✅ Successfully indexed all documents!")
+    print("\n✅ Successfully indexed all deduplicated documents!")
     
     # Print summary by type
     print("\n📋 Document Summary:")

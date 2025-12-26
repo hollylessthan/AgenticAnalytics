@@ -185,20 +185,31 @@ def main():
     
     # Load all cards
     cards = load_all_method_cards(cards_dir)
-    
+
     if not cards:
         print("❌ No cards loaded")
         return
-    
+
+    # Deduplicate by method_name
+    seen = set()
+    deduped_cards = []
+    for card in cards:
+        if card.method_name not in seen:
+            deduped_cards.append(card)
+            seen.add(card.method_name)
+    if len(deduped_cards) < len(cards):
+        print(f"⚠️  Removed {len(cards) - len(deduped_cards)} duplicate cards by method_name.")
+    cards = deduped_cards
+
     # Print summary
     print_summary(cards)
-    
+
     # Store in LanceDB
     store_cards_in_lancedb(cards, config)
-    
+
     print("\n✅ Method cards loaded successfully!")
     print(f"📍 Location: ./lancedb/method_cards.lance")
-    
+
     # Instructions
     print("\n" + "="*60)
     print("📝 USAGE:")
