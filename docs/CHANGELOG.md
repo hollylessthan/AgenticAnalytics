@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+#### Profiling Agent
+- Outlier detection method updated: Now uses Mean ± 3 * StdDev instead of IQR for numeric columns. After preprocessing, outlier flags are set to `False` and outlier details are cleared in the profile.
+- Improved normality/skewness detection and reporting in the data profile.
+
+#### Preprocessing Agent
+- Outlier capping recommendations and code generation now use Mean ± 3 * StdDev method.
+- RAG-powered method card retrieval for outlier handling, transformation, imputation, encoding, and scaling is now category-specific.
+- Improved validation and error-aware retry logic for LLM-generated preprocessing code.
+- Fallback hardcoded preprocessing code is now disabled; all code must be LLM-generated.
+
+#### Modeling Agent
+- Enhanced model selection: RAG retrieval now filters method cards by problem type (regression/classification).
+- Improved logging and error handling for model selection and training.
+- System prompt for code generation now clarifies that input DataFrame is fully preprocessed.
+
+#### RAG System & Method Cards
+- Added category-specific retrieval methods for outlier handling, transformation, imputation, encoding, and scaling.
+- Vector store now indexes and filters by method card category.
+- MethodCard schema extended with new categories and problem types.
+- Added/updated method cards for outlier capping (Mean ± 3 * StdDev) and encoding (OneHotEncoder, LabelEncoder, OrdinalEncoder).
+
+#### Testing & Utilities
+- `load_method_cards.py` now removes existing LanceDB directory before re-indexing for a clean slate.
+- Added scripts for telecom dataset generation and RAG documentation (`generate_telecom_rag_doc.py`, `setup_telecom_duckdb.py`).
+
+#### New/Untracked Files
+- `method_cards/encoding.yaml`, `method_cards/transformation.yaml`: New method card YAMLs for encoding and transformation/outlier handling.
+- `testing/generate_telecom_rag_doc.py`, `testing/setup_telecom_duckdb.py`: Scripts for telecom dataset and documentation.
+
 ### Added
 #### Knowledge Base Deduplication
 - **Duplicate Knowledge Prevention**: Updated `testing/load_method_cards.py` and `testing/load_rag_documents.py` to avoid loading duplicate method cards and RAG documents into the vector store. Deduplication logic ensures only unique knowledge entries are indexed, improving retrieval quality and storage efficiency.

@@ -949,15 +949,16 @@ class LanceDBVectorStore(VectorStoreBase):
         for doc in documents:
             # Generate embedding
             embedding = self.embeddings.embed_query(doc.page_content)
-            
+
             # Extract metadata fields
             metadata = doc.metadata or {}
-            
+
             data.append({
                 "content": doc.page_content,
                 "vector": embedding,
                 "source": metadata.get("source", "unknown"),
                 "topic": metadata.get("topic", "general"),
+                "category": metadata.get("category", ""),
                 "doc_type": metadata.get("doc_type", "general"),
                 "file_path": metadata.get("file_path", ""),
                 "chunk_id": metadata.get("chunk_id", 0),
@@ -1005,7 +1006,7 @@ class LanceDBVectorStore(VectorStoreBase):
         if filter_dict:
             filter_conditions = []
             for key, value in filter_dict.items():
-                if key in ["source", "topic", "doc_type"]:
+                if key in ["source", "topic", "doc_type", "category"]:
                     filter_conditions.append(f"{key} = '{value}'")
             
             if filter_conditions:

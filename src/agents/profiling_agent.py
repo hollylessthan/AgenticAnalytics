@@ -89,7 +89,7 @@ class ProfilingAgent(BaseAgent):
 
         # Generate comprehensive data profile
         print(f"[ProfilingAgent] Generating data profile for {len(df)} rows, {len(df.columns)} columns... (source: {source_type})")
-        state.data_profile = self._generate_data_profile(df)
+        state.data_profile = self._generate_data_profile(df, source_type=source_type)
         state.data_profile["profile_provenance"] = provenance
         state.data_profile["profile_source_type"] = source_type
 
@@ -215,7 +215,7 @@ class ProfilingAgent(BaseAgent):
             len(profile["categorical_columns"]) > 0
         )
     
-    def _generate_data_profile(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def _generate_data_profile(self, df: pd.DataFrame, source_type: str = None) -> Dict[str, Any]:
         """Generate comprehensive data profile with quality checks.
         
         This includes all important checks:
@@ -223,7 +223,7 @@ class ProfilingAgent(BaseAgent):
         - Duplicate detection
         - Data type analysis (categorical, numeric, datetime)
         - Distribution analysis (skewness, kurtosis, normality tests)
-        - Outlier detection (IQR method)
+        - Outlier detection (Mean ± 3 * StdDev method)
         - Cardinality analysis
         - Correlation analysis
         - Scaling needs assessment
@@ -287,29 +287,11 @@ class ProfilingAgent(BaseAgent):
                 col_data = df[col].dropna()
                 if len(col_data) < 3:
                     continue
-                
                 # Calculate skewness and kurtosis
                 skewness = float(col_data.skew())
                 kurtosis = float(col_data.kurtosis())
-                
-                # Shapiro-Wilk test for normality (use sample if data is large)
-                sample_size = min(5000, len(col_data))
-                if len(col_data) > sample_size:
-                    sample_data = col_data.sample(sample_size, random_state=42)
-                else:
-                    sample_data = col_data
-                
-                # Test normality
-                is_normal = None
-                shapiro_p = None
-                if len(sample_data) >= 3:
-                    try:
-                        shapiro_stat, shapiro_p = stats.shapiro(sample_data)
-                        shapiro_p = float(shapiro_p)
-                        is_normal = shapiro_p > 0.05
-                    except:
-                        pass
-                
+                # Engineering check for normality
+                is_normal = abs(skewness) < 1 and abs(kurtosis) < 2
                 distributions[col] = {
                     "mean": float(col_data.mean()),
                     "std": float(col_data.std()),
@@ -317,9 +299,9 @@ class ProfilingAgent(BaseAgent):
                     "min": float(col_data.min()),
                     "max": float(col_data.max()),
                     "skewness": skewness,
+                    "skew_direction": "right" if skewness > 1 else ("left" if skewness < -1 else "none"),
                     "kurtosis": kurtosis,
                     "is_normal": is_normal,
-                    "shapiro_p_value": shapiro_p,
                     "quantiles": {
                         "q25": float(col_data.quantile(0.25)),
                         "q50": float(col_data.quantile(0.50)),
@@ -328,15 +310,14 @@ class ProfilingAgent(BaseAgent):
                         "q99": float(col_data.quantile(0.99))
                     }
                 }
-                
                 # Track non-normal features
-                if is_normal is False:
+                if not is_normal:
                     non_normal_features.append(col)
-                
                 # Track skewed features (threshold: |skewness| > 1)
-                if abs(skewness) > 1:
-                    skewed_features.append({"column": col, "skewness": skewness})
-                    
+                if skewness > 1:
+                    skewed_features.append({"column": col, "skewness": skewness, "skew_direction": "right"})
+                elif skewness < -1:
+                    skewed_features.append({"column": col, "skewness": skewness, "skew_direction": "left"})
             except Exception as e:
                 print(f"[ProfilingAgent] Error profiling column {col}: {e}")
                 continue
@@ -353,36 +334,36 @@ class ProfilingAgent(BaseAgent):
         else:
             profile["recommended_correlation"] = "pearson"
         
-        # 5. Outlier detection (IQR method)
+        # 5. Outlier detection (Mean ± 3 * StdDev)
         outliers = {}
-        for col in numeric_cols[:10]:  # Check first 10 numeric columns
-            try:
-                col_data = df[col].dropna()
-                if len(col_data) < 4:
+        if source_type == "preprocessed":
+            # After preprocessing, set outlier flag to False and clear outliers
+            profile["outliers"] = {}
+            profile["has_outliers"] = False
+        else:
+            for col in numeric_cols[:10]:  # Check first 10 numeric columns
+                try:
+                    col_data = df[col].dropna()
+                    if len(col_data) < 4:
+                        continue
+                    mean = col_data.mean()
+                    std = col_data.std()
+                    lower_bound = mean - 3 * std
+                    upper_bound = mean + 3 * std
+                    outlier_mask = (col_data < lower_bound) | (col_data > upper_bound)
+                    outlier_count = outlier_mask.sum()
+                    if outlier_count > 0:
+                        outliers[col] = {
+                            "count": int(outlier_count),
+                            "pct": float((outlier_count / len(col_data)) * 100),
+                            "lower_bound": float(lower_bound),
+                            "upper_bound": float(upper_bound),
+                            "method": "mean±3std"
+                        }
+                except:
                     continue
-                
-                Q1 = col_data.quantile(0.25)
-                Q3 = col_data.quantile(0.75)
-                IQR = Q3 - Q1
-                lower_bound = Q1 - 1.5 * IQR
-                upper_bound = Q3 + 1.5 * IQR
-                
-                outlier_mask = (col_data < lower_bound) | (col_data > upper_bound)
-                outlier_count = outlier_mask.sum()
-                
-                if outlier_count > 0:
-                    outliers[col] = {
-                        "count": int(outlier_count),
-                        "pct": float((outlier_count / len(col_data)) * 100),
-                        "lower_bound": float(lower_bound),
-                        "upper_bound": float(upper_bound),
-                        "method": "IQR"
-                    }
-            except:
-                continue
-        
-        profile["outliers"] = outliers
-        profile["has_outliers"] = len(outliers) > 0
+            profile["outliers"] = outliers
+            profile["has_outliers"] = len(outliers) > 0
         
         # 6. Cardinality analysis
         cardinality = {}

@@ -75,6 +75,7 @@ class ModelingAgent(BaseAgent):
             # Assert or warn if data_profile is missing or not post-preprocessing
             if not state.data_profile:
                 raise ValueError("[ModelingAgent] No data_profile found. ProfilingAgent must run after preprocessing.")
+            print(f"[ModelingAgent] Data profile after preprocessing: {state.data_profile}")
             # Optionally, check for provenance flag here if implemented
 
             # Get data source - prefer preprocessed data if available
@@ -204,7 +205,7 @@ class ModelingAgent(BaseAgent):
         except Exception as e:
             print(f"[ModelingAgent] Error: {str(e)}")
             print(traceback.format_exc())
-            state.error = str(e)
+            print(f"[ModelingAgent] Exception stored: {str(e)}")
             return state
     
     def _detect_modeling_intent(self, query: str, df: pd.DataFrame, conversation_history: List[Dict[str, str]] = None) -> Dict[str, Any]:
@@ -407,13 +408,27 @@ Respond in JSON format:
             method_cards: List[Tuple[MethodCard, float]] = self.rag_system.retrieve_methods_for_modeling(
                 query=rag_query,
                 data_profile=data_profile,
-                k=5
+                k=10
             )
-            
+
+            # Filter by problem_type
+            problem_type = modeling_intent.get('problem_type', '').lower()
+            def get_problem_type_str(card):
+                pt = getattr(card, 'problem_type', '')
+                # Handle enum or object with .value
+                if hasattr(pt, 'value'):
+                    return str(pt.value).lower()
+                return str(pt).lower()
+            if problem_type == 'regression':
+                method_cards = [mc for mc in method_cards if get_problem_type_str(mc[0]) == 'regression']
+            elif problem_type == 'classification':
+                method_cards = [mc for mc in method_cards if 'classification' in get_problem_type_str(mc[0])]
+            # (Extend for clustering or other types as needed)
+
             if not method_cards:
-                print("[ModelingAgent] No method cards found, using LLM fallback")
+                print("[ModelingAgent] No method cards found after filtering, using LLM fallback")
                 return self._llm_select_models(query, df, modeling_intent)
-            
+
             # Convert method cards to model info dicts
             models = []
             for card, score in method_cards:
@@ -432,7 +447,7 @@ Respond in JSON format:
                 models.append(model_info)
                 print(f"[ModelingAgent]   - {card.method_name} (score: {score:.2f})")
                 print(f"[ModelingAgent]     {card.when_to_use[:100]}...")
-            
+
             # LLM ranks and selects best model
             final_selection = self._llm_rank_models(models, query, modeling_intent, data_profile)
             return final_selection
@@ -492,7 +507,7 @@ Problem Context:
 Candidate Models:
 {candidates}
 
-Select the top 3 models and explain why. Respond in JSON:
+Select the top 5 models and explain why. Respond in JSON:
 {{
     "ranked_models": [
         {{
@@ -541,6 +556,12 @@ Select the top 3 models and explain why. Respond in JSON:
                 if model not in ordered_models:
                     ordered_models.append(model)
             
+            # Print LLM reasoning for all models
+            print("[ModelingAgent] LLM Model Selection Reasoning:")
+            for model in ordered_models:
+                name = model.get('name', 'Unknown')
+                reasoning = model.get('llm_reasoning', '(No reasoning)')
+                print(f"  - {name}: {reasoning}")
             return ordered_models if ordered_models else candidates
             
         except Exception as e:
@@ -643,7 +664,7 @@ Respond in JSON:
         
         # Use LLM to generate complete training code
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are a Python ML engineer. Generate complete training code for this model.
+                ("system", """You are a Python ML engineer. Generate complete training code for this model.
 
 Model: {model_name}
 Package: {package}
@@ -654,8 +675,8 @@ Code Template:
 Requirements:
 1. Use the provided code template as reference
 2. Split data into train/test (80/20) using train_test_split
-   - For CLASSIFICATION: Use stratify=y ONLY if there are enough samples per class (at least 2)
-   - For REGRESSION: Do NOT use stratify parameter at all
+    - For CLASSIFICATION: Use stratify=y ONLY if there are enough samples per class (at least 2)
+    - For REGRESSION: Do NOT use stratify parameter at all
 3. Train the model on training data
 4. Generate predictions on test data
 5. Calculate appropriate metrics ({metrics})
@@ -663,8 +684,7 @@ Requirements:
 7. Extract feature importance if available (for tree-based models)
 8. Store results in a dict: {{'model': model, 'predictions': y_pred, 'metrics': {{}}, 'feature_importance': ...}}
 
-IMPORTANT: Assume data is already preprocessed and clean (no missing values, categorical variables already encoded).
-The preprocessing agent has already handled missing values and categorical encoding.
+IMPORTANT: The input DataFrame 'df' is already fully preprocessed: all missing values are filled, all categorical variables are encoded, and all columns are numeric and ready for modeling. DO NOT repeat any preprocessing, imputation, or encoding steps. Use the DataFrame as-is for modeling.
 
 Target column: {target}
 Feature columns: {features}

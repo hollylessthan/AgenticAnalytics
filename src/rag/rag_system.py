@@ -13,7 +13,95 @@ from ..utils.llm_factory import get_llm
 from ..utils.embedding_factory import get_embeddings
 
 
+
 class RAGSystem:
+    def retrieve_methods_for_outlier_handling(
+        self,
+        query: str,
+        data_profile: Optional[Dict[str, Any]] = None,
+        k: int = 3
+    ) -> List[Tuple[MethodCard, float]]:
+        """Retrieve outlier handling method cards only."""
+        filter_dict = {
+            "category": "preprocessing_outlier_handling"
+        }
+        return self.retrieve_method_cards(
+            query=query,
+            data_profile=data_profile,
+            k=k,
+            filter_dict=filter_dict
+        )
+
+    def retrieve_methods_for_transformation(
+        self,
+        query: str,
+        data_profile: Optional[Dict[str, Any]] = None,
+        k: int = 3
+    ) -> List[Tuple[MethodCard, float]]:
+        """Retrieve transformation (e.g., skewness/log transform) method cards only."""
+        filter_dict = {
+            "category": "preprocessing_transformation"
+        }
+        # Do not pass data_profile, disables constraint filtering
+        return self.retrieve_method_cards(
+            query=query,
+            data_profile=None,
+            k=k,
+            filter_dict=filter_dict
+        )
+
+    def retrieve_methods_for_imputation(
+        self,
+        query: str,
+        data_profile: Optional[Dict[str, Any]] = None,
+        k: int = 3
+    ) -> List[Tuple[MethodCard, float]]:
+        """Retrieve imputation method cards only."""
+        filter_dict = {
+            "category": "preprocessing_imputation"
+        }
+        return self.retrieve_method_cards(
+            query=query,
+            data_profile=data_profile,
+            k=k,
+            filter_dict=filter_dict
+        )
+
+
+    def retrieve_methods_for_encoding(
+        self,
+        query: str,
+        data_profile: Optional[Dict[str, Any]] = None,
+        k: int = 3
+    ) -> List[Tuple[MethodCard, float]]:
+        """Retrieve encoding method cards only."""
+        filter_dict = {
+            "category": "preprocessing_encoding"
+        }
+        return self.retrieve_method_cards(
+            query=query,
+            data_profile=data_profile,
+            k=k,
+            filter_dict=filter_dict
+        )
+
+
+    def retrieve_methods_for_scaling(
+        self,
+        query: str,
+        data_profile: Optional[Dict[str, Any]] = None,
+        k: int = 3
+    ) -> List[Tuple[MethodCard, float]]:
+        """Retrieve scaling method cards only."""
+        filter_dict = {
+            "category": "preprocessing_scaling"
+        }
+        return self.retrieve_method_cards(
+            query=query,
+            data_profile=data_profile,
+            k=k,
+            filter_dict=filter_dict
+        )
     """RAG system with metadata-aware retrieval for context-aware query processing."""
     
     def __init__(

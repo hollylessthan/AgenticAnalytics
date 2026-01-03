@@ -235,12 +235,40 @@ python load_method_cards.py
 cd ..
 ```
 
+
 This creates a realistic retail analytics database with:
 - 24 tables (customers, orders, products, sales, etc.)
 - ~10M rows of realistic data
 - Industry-standard TPC-DS schema
 - RAG-indexed schema for intelligent query generation
 - 40+ method cards for statistical tests and ML models
+
+---
+
+### Simulated Telecom Data for Testing Preprocessing & Modeling
+
+You can also generate a simulated telecom customer churn dataset to test the preprocessing and modeling agents:
+
+```bash
+cd testing
+python setup_telecom_duckdb.py
+```
+
+This creates a `telecom_churn` table in `testing/tpcds_1gb.duckdb` with realistic features for customer churn prediction (demographics, usage, contract, etc.).
+
+To generate RAG documents for the telecom schema and load them:
+
+```bash
+python generate_telecom_rag_doc.py
+python load_rag_documents.py
+```
+
+You can now use Data Copilot to:
+- Profile the telecom data
+- Test outlier detection, imputation, encoding, and scaling
+- Run LLM-driven preprocessing and modeling workflows
+
+This is useful for validating the full agentic analytics pipeline on a reproducible, realistic dataset.
 
 ## Step 4: Launch Data Copilot (1 min)
 

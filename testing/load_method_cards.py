@@ -175,7 +175,15 @@ def main():
     # Setup paths
     project_root = Path(__file__).parent.parent
     cards_dir = project_root / "method_cards"
-    
+    lancedb_dir = project_root / "lancedb" / "method_cards.lance"
+
+    # Delete existing LanceDB method_cards.lance directory for a clean index
+    if lancedb_dir.exists():
+        import shutil
+        print(f"🧹 Removing existing LanceDB directory: {lancedb_dir}")
+        shutil.rmtree(lancedb_dir)
+        print(f"✅ Removed {lancedb_dir}")
+
     if not cards_dir.exists():
         print(f"❌ Cards directory not found: {cards_dir}")
         return
@@ -183,7 +191,6 @@ def main():
     # Load configuration
     config = Config()
     
-    # Load all cards
     cards = load_all_method_cards(cards_dir)
 
     if not cards:

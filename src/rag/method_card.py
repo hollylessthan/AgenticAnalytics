@@ -17,6 +17,8 @@ class MethodCategory(Enum):
     PREPROCESSING_IMPUTATION = "preprocessing_imputation"
     PREPROCESSING_SCALING = "preprocessing_scaling"
     PREPROCESSING_ENCODING = "preprocessing_encoding"
+    PREPROCESSING_TRANSFORMATION = "preprocessing_transformation"
+    PREPROCESSING_OUTLIER_HANDLING = "preprocessing_outlier_handling"
     STATS_NORMALITY = "stats_normality"
     STATS_CORRELATION = "stats_correlation"
     STATS_COMPARISON = "stats_comparison"
@@ -40,6 +42,7 @@ class ProblemType(Enum):
     PREPROCESSING = "preprocessing"  # General preprocessing
     EVALUATION = "evaluation"  # Performance evaluation
     STATISTICAL_TEST = "statistical_test"  # General statistical test
+    FEATURE_ENGINEERING = "feature_engineering"
 
 
 @dataclass

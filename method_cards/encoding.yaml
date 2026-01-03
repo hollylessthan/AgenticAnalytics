@@ -1,0 +1,91 @@
+
+# Preprocessing: Encoding Method Cards
+
+- method_name: "OneHotEncoder"
+  category: "preprocessing_encoding"
+  problem_type: "categorical_encoding"
+  data_conditions:
+    handles_categorical: true
+    requires_numeric: false
+    supports_binary_target: false
+    supports_multiclass_target: false
+    supports_continuous_target: false
+    min_categories: 2
+    max_categories: null
+  assumptions:
+    - "Each category is independent."
+  when_to_use: "Nominal categorical features (no ordinal relationship). Use for ML models that require numeric input."
+  when_not_to_use: "High cardinality features (many unique values). Features with ordinal relationship."
+  alternatives: ["LabelEncoder", "OrdinalEncoder"]
+  code_example: |
+    from sklearn.preprocessing import OneHotEncoder
+    encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+    X_encoded = encoder.fit_transform(X)
+  parameters:
+    sparse_output: "If False, returns dense array. If True, returns sparse matrix. (scikit-learn >= 1.2)"
+    handle_unknown: "How to handle unknown categories during transform."
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OneHotEncoder.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  library_version: "1.8.0"
+  supporting_excerpt: "Encode categorical features as a one-hot numeric array."
+  last_updated: "2025-12-28"
+
+- method_name: "LabelEncoder"
+  category: "preprocessing_encoding"
+  problem_type: "categorical_encoding"
+  data_conditions:
+    handles_categorical: true
+    requires_numeric: false
+    supports_binary_target: false
+    supports_multiclass_target: false
+    supports_continuous_target: false
+    min_categories: 2
+    max_categories: null
+  assumptions:
+    - "Categories have a meaningful order."
+  when_to_use: "Ordinal categorical features (with order). Use for target variable encoding or ordinal features."
+  when_not_to_use: "Nominal features (no order). Features with many unique values."
+  alternatives: ["OneHotEncoder", "OrdinalEncoder"]
+  code_example: |
+    from sklearn.preprocessing import LabelEncoder
+    encoder = LabelEncoder()
+    X_encoded = encoder.fit_transform(X)
+  parameters:
+    None: "LabelEncoder has no tunable parameters."
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.LabelEncoder.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  library_version: "1.8.0"
+  supporting_excerpt: "Encode target labels with value between 0 and n_classes-1."
+  last_updated: "2025-12-28"
+
+- method_name: "OrdinalEncoder"
+  category: "preprocessing_encoding"
+  problem_type: "categorical_encoding"
+  data_conditions:
+    handles_categorical: true
+    requires_numeric: false
+    supports_binary_target: false
+    supports_multiclass_target: false
+    supports_continuous_target: false
+    min_categories: 2
+    max_categories: null
+  assumptions:
+    - "Categories have a meaningful order."
+  when_to_use: "Ordinal categorical features (with order). Use for features with a clear order."
+  when_not_to_use: "Nominal features (no order). Features with many unique values."
+  alternatives: ["OneHotEncoder", "LabelEncoder"]
+  code_example: |
+    from sklearn.preprocessing import OrdinalEncoder
+    encoder = OrdinalEncoder()
+    X_encoded = encoder.fit_transform(X)
+  parameters:
+    categories: "List of categories per feature."
+    dtype: "Desired dtype of output."
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OrdinalEncoder.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  library_version: "1.8.0"
+  supporting_excerpt: "Encode categorical features as an integer array."
+  last_updated: "2025-12-28"

@@ -1,0 +1,188 @@
+# LogTransformer using sklearn FunctionTransformer
+- method_name: "LogTransformer (sklearn FunctionTransformer)"
+  category: "preprocessing_transformation"
+  problem_type: "feature_engineering"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    supports_continuous_target: true
+  assumptions:
+    - "Feature is continuous and non-negative (log1p handles zeros)"
+    - "High skewness (|skew| > 1)"
+  when_to_use: "When a numeric feature is highly skewed (|skew| > 1), especially for linear models. Log transform can make the distribution more normal and improve model performance."
+  when_to_use: "When a numeric feature is highly right-skewed (skewness > 1), especially for linear models. Log transform can make the distribution more normal and improve model performance. Log transform is NOT appropriate for left-skewed (skewness < -1) data."
+  when_not_to_use: "Negative values (log1p is undefined), categorical features, left-skewed features (skewness < -1), or when interpretability of original scale is required. For left-skewed data, consider using a power transform (e.g., Yeo-Johnson) instead."
+  alternatives:
+    - "BoxCoxTransformer"
+    - "YeoJohnsonTransformer"
+  code_example: |
+    from sklearn.preprocessing import FunctionTransformer
+    import numpy as np
+    # Apply log1p transform to skewed column using sklearn
+    transformer = FunctionTransformer(np.log1p, validate=True)
+    df["feature_skewed"] = transformer.transform(df[["feature_skewed"]])
+  parameters:
+    function: "The transformation function to apply (e.g., np.log1p)"
+    validate: "Check input shape (default: True)"
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.FunctionTransformer.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  python_package: "scikit-learn"
+  library_version: "1.4.0"
+  supporting_excerpt: "FunctionTransformer is a flexible way to apply a custom function (like np.log1p) to columns in a pipeline."
+  last_updated: "2025-12-28"
+  confidence: 0.98
+
+# PowerTransformer using sklearn
+- method_name: "PowerTransformer (sklearn)"
+  category: "preprocessing_transformation"
+  problem_type: "feature_engineering"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    supports_continuous_target: true
+  assumptions:
+    - "Feature is continuous and positive (Box-Cox) or can be zero/negative (Yeo-Johnson)"
+    - "Distribution is non-normal and needs normalization"
+  when_to_use: "When you need to stabilize variance and make data more Gaussian-like. Useful for highly skewed features before modeling."
+  when_to_use: "When you need to stabilize variance and make data more Gaussian-like. Useful for highly skewed features (either right-skewed or left-skewed; skewness > 1 or skewness < -1) before modeling. Power transforms (Box-Cox, Yeo-Johnson) can address both right- and left-skewed distributions. For left-skewed data, these are preferred over log transforms."
+  when_not_to_use: "Categorical features, or when interpretability of original scale is required. Do not use Box-Cox for features with zero or negative values (use Yeo-Johnson instead)."
+  alternatives:
+    - "LogTransformer"
+    - "QuantileTransformer"
+  code_example: |
+    from sklearn.preprocessing import PowerTransformer
+    # Apply PowerTransformer (Yeo-Johnson by default)
+    transformer = PowerTransformer(method='yeo-johnson', standardize=True)
+    df["feature_skewed"] = transformer.fit_transform(df[["feature_skewed"]])
+  parameters:
+    method: "'yeo-johnson' (default, supports zero/negatives) or 'box-cox' (positive only)"
+    standardize: "Whether to center and scale output (default: True)"
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.PowerTransformer.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  python_package: "scikit-learn"
+  library_version: "1.4.0"
+  supporting_excerpt: "PowerTransformer applies a power transformation to make data more Gaussian-like. Yeo-Johnson supports zero/negative values."
+  last_updated: "2025-12-28"
+  confidence: 0.98
+
+# IQR Outlier Capping (manual, pandas)
+- method_name: "IQR Outlier Capping (manual, pandas)"
+  category: "preprocessing_outlier_handling"
+  problem_type: "feature_engineering"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    supports_continuous_target: true
+  assumptions:
+    - "Feature is continuous and numeric"
+    - "Outliers are defined as values outside 1.5 * IQR from Q1/Q3"
+  when_to_use: "When you need to cap (winsorize) outliers in numeric features to reduce their influence, especially before modeling."
+  when_not_to_use: "Categorical features, or when outliers are meaningful and should not be altered."
+  alternatives:
+    - "RobustScaler (sklearn)"
+    - "QuantileTransformer (sklearn)"
+  code_example: |
+    # IQR-based outlier capping for a numeric column in pandas
+    col = "feature_numeric"
+    Q1 = df[col].quantile(0.25)
+    Q3 = df[col].quantile(0.75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    df[col] = df[col].clip(lower_bound, upper_bound)
+  parameters:
+    col: "The column to cap outliers for. Apply to each numeric column as needed."
+    lower_bound: "Lower capping threshold (Q1 - 1.5*IQR)"
+    upper_bound: "Upper capping threshold (Q3 + 1.5*IQR)"
+  source_url: "https://en.wikipedia.org/wiki/Interquartile_range"
+  source_license: "CC BY-SA 3.0"
+  library: "pandas"
+  python_package: "pandas"
+  library_version: "2.2.0"
+  supporting_excerpt: "The IQR method is a robust way to detect and cap outliers by limiting values to the [Q1-1.5*IQR, Q3+1.5*IQR] range."
+  last_updated: "2025-12-28"
+  confidence: 0.98
+  category: "preprocessing_transformation"
+  problem_type: "feature_engineering"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    supports_continuous_target: true
+  assumptions:
+    - "Feature is continuous and positive (Box-Cox) or can be zero/negative (Yeo-Johnson)"
+    - "Distribution is non-normal and needs normalization"
+  when_to_use: "When you need to stabilize variance and make data more Gaussian-like. Useful for highly skewed features before modeling."
+  when_not_to_use: "Categorical features, or when interpretability of original scale is required."
+  alternatives:
+    - "LogTransformer"
+    - "QuantileTransformer"
+  code_example: |
+    from sklearn.preprocessing import PowerTransformer
+    # Apply PowerTransformer (Yeo-Johnson by default)
+    transformer = PowerTransformer(method='yeo-johnson', standardize=True)
+    df["feature_skewed"] = transformer.fit_transform(df[["feature_skewed"]])
+  parameters:
+    method: "'yeo-johnson' (default, supports zero/negatives) or 'box-cox' (positive only)"
+    standardize: "Whether to center and scale output (default: True)"
+  source_url: "https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.PowerTransformer.html"
+  source_license: "BSD-3-Clause"
+  library: "sklearn"
+  python_package: "scikit-learn"
+  library_version: "1.4.0"
+  supporting_excerpt: "PowerTransformer applies a power transformation to make data more Gaussian-like. Yeo-Johnson supports zero/negative values."
+  last_updated: "2025-12-28"
+  confidence: 0.98
+
+- method_name: "Mean ± 3 * StdDev Outlier Capping (manual, pandas)"
+  category: "preprocessing_outlier_handling"
+  problem_type: "feature_engineering"
+  data_conditions:
+    sample_size_min: 10
+    sample_size_max: null
+    requires_normality: false
+    handles_missing_values: false
+    handles_categorical: false
+    supports_continuous_target: true
+  assumptions:
+    - "Feature is continuous and numeric"
+    - "Outliers are defined as values outside mean ± 3 * standard deviation"
+  when_to_use: "When you need to cap (winsorize) outliers in numeric features using the mean and standard deviation, especially for normally distributed data or when IQR is not appropriate."
+  when_not_to_use: "Categorical features, or when outliers are meaningful and should not be altered. Not recommended for highly skewed or non-normal data."
+  alternatives:
+    - "IQR Outlier Capping (manual, pandas)"
+    - "RobustScaler (sklearn)"
+    - "QuantileTransformer (sklearn)"
+  code_example: |
+    # Mean ± 3*StdDev outlier capping for a numeric column in pandas
+    col = "feature_numeric"
+    mean = df[col].mean()
+    std = df[col].std()
+    lower_bound = mean - 3 * std
+    upper_bound = mean + 3 * std
+    df[col] = df[col].clip(lower_bound, upper_bound)
+  parameters:
+    col: "The column to cap outliers for. Apply to each numeric column as needed."
+    lower_bound: "Lower capping threshold (mean - 3*std)"
+    upper_bound: "Upper capping threshold (mean + 3*std)"
+  source_url: "https://en.wikipedia.org/wiki/Standard_deviation"
+  source_license: "CC BY-SA 3.0"
+  library: "pandas"
+  python_package: "pandas"
+  library_version: "2.2.0"
+  supporting_excerpt: "The mean ± 3*std method is a common way to detect and cap outliers for approximately normal distributions."
+  last_updated: "2026-01-02"
+  confidence: 0.98
